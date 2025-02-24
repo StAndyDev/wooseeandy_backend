@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Chat</title>
+</head>
+
+<body>
+    <h1>Chat WebSocket</h1>
+    <div id="chat-log"></div>
+    <input id="chat-message-input" type="text" size="100">
+    <button id="chat-message-submit">Envoyer</button>
+
+    <script>
+        // URL de l'API
+        const API_URL = "http://127.0.0.1:8000/api/messages/";
+
+        // Fonction pour récupérer les messages
+        async function fetchMessages() {
+            try {
+                const response = await fetch(API_URL); // Requête GET vers l'API
+                if (!response.ok) {
+                    throw new Error(`Une erreur est survenue : ${response.status}`);
+                }
+
+                const messages = await response.json(); // Conversion des données en JSON
+                console.log("Messages récupérés :", messages); // Affiche les messages dans la console
+
+                // Afficher les messages dans le DOM (optionnel)
+                displayMessages(messages);
+            } catch (error) {
+                console.error("Erreur lors de la récupération des messages :", error);
+            }
+        }
+
+        // Fonction pour afficher les messages dans le DOM
+        function displayMessages(messages) {
+            const messagesContainer = document.getElementById("chat-log");
+
+            // Nettoyer le conteneur avant d'ajouter les messages
+            messagesContainer.innerHTML = "";
+
+            // Ajouter chaque message dans une balise <p>
+            messages.forEach((message) => {
+                const messageElement = document.createElement("p");
+                messageElement.textContent = message.message; // Afficher le texte du message
+                messagesContainer.appendChild(messageElement);
+            });
+        }
+
+        // Appel de la fonction pour récupérer les messages
+        fetchMessages();
+
+
+
+        const chatSocket = new WebSocket(
+            'ws://' + window.location.host + '/ws/visitor-tracker/'
+        );
+        chatSocket.onopen = function (e) {
+            console.log('Chat socket opened');
+            fetchMessages();
+        };
+        // chatSocket.onmessage est un événement qui se déclenche lorsqu'un message est reçu
+        chatSocket.onmessage = function (e) {
+            const data = JSON.parse(e.data);
+            const chatLog = document.getElementById('chat-log');
+            chatLog.innerHTML += '<p>' + data.message + '</p>';
+        };
+
+        chatSocket.onclose = function (e) {
+            console.error('Chat socket closed unexpectedly');
+        };
+
+        document.getElementById('chat-message-submit').onclick = function (e) {
+            const messageInput = document.getElementById('chat-message-input');
+            const message = messageInput.value;
+            chatSocket.send(JSON.stringify({
+                'message': message
+            }));
+            messageInput.value = '';
+        };
+    </script>
+</body>
+
+</html>
