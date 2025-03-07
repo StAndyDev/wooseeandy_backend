@@ -49,6 +49,10 @@ ASGI_APPLICATION = 'wooseeandy_backend.asgi.application'
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels.layers.InMemoryChannelLayer", # backend en mémoire pour le développement
+        # 'BACKEND': 'channels_redis.core.RedisChannelLayer',  # Pour la production
+        # 'CONFIG': {
+        #     'hosts': [('127.0.0.1', 6379)],
+        # },
     },
 }
 

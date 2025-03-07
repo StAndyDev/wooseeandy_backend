@@ -8,7 +8,7 @@ class Message(models.Model):
         return self.message
 # VISITOR
 class Visitor(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False) # auto-generate UUID    
+    id = models.UUIDField(primary_key=True, editable=False) # auto-generate UUID    
     navigator_info = models.TextField(blank=True, null=True)
     os = models.CharField(max_length=255, blank=True, null=True)
     device_type = models.CharField(max_length=50, blank=True, null=True)
