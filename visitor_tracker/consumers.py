@@ -1,6 +1,6 @@
 import json, uuid
 from channels.generic.websocket import AsyncWebsocketConsumer
-from .models import Message, Visitor, VisitInfo
+from .models import Visitor, VisitInfo
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from visitor_tracker.utils.validators import is_valid_uuid

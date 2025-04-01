@@ -1,10 +1,5 @@
 from django.db import models
 
-class Message(models.Model):
-    message = models.TextField()
-
-    def __str__(self):
-        return self.message
 # VISITOR
 class Visitor(models.Model):
     id = models.UUIDField(primary_key=True, editable=False)   

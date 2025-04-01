@@ -13,7 +13,7 @@
 
     <script>
         // URL de l'API
-        const API_URL = "http://127.0.0.1:8000/api/messages/";
+        const API_URL = "http://127.0.0.1:8000/api/visitors/";
 
         // Fonction pour récupérer les messages
         async function fetchMessages() {
@@ -22,9 +22,8 @@
                 if (!response.ok) {
                     throw new Error(`Une erreur est survenue : ${response.status}`);
                 }
-
                 const messages = await response.json(); // Conversion des données en JSON
-                console.log("Messages récupérés :", messages); // Affiche les messages dans la console
+                console.log("Messages récupérés :", messages[0].id); // Affiche les messages dans la console
 
                 // Afficher les messages dans le DOM (optionnel)
                 displayMessages(messages);
@@ -41,11 +40,11 @@
             messagesContainer.innerHTML = "";
 
             // Ajouter chaque message dans une balise <p>
-            messages.forEach((message) => {
+            for(let i = 0; i < messages.length; i++) {
                 const messageElement = document.createElement("p");
-                messageElement.textContent = message.message; // Afficher le texte du message
+                messageElement.textContent = messages[i].id; // Afficher le texte du message
                 messagesContainer.appendChild(messageElement);
-            });
+            }
         }
 
         // Appel de la fonction pour récupérer les messages
@@ -54,7 +53,7 @@
 
 
         const chatSocket = new WebSocket(
-            'ws://' + window.location.host + '/ws/visitor-tracker/'
+            'ws://' + window.location.host + '/ws/visitor-tracker/?token=a3b7e8f9c2d4g5h6j0k1l2m3n9p8q7r'
         );
         chatSocket.onopen = function (e) {
             console.log('Chat socket opened');
