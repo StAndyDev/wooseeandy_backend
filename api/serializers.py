@@ -1,7 +1,7 @@
 from rest_framework import serializers
-from visitor_tracker.models import Message
+from visitor_tracker.models import Visitor
 
-class MessageSerializer(serializers.ModelSerializer):
+class VisitorSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Message
-        fields = ['id', 'message']
+        model = Visitor
+        fields = ['id', 'navigator_info', 'os', 'device_type']

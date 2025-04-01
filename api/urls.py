@@ -1,6 +1,7 @@
 from django.urls import path
-from .views import get_all_messages
+from .views import all_visitors, visitor_by_id
 
 urlpatterns = [
-    path('messages/', get_all_messages, name='get_all_messages'),
+    path('visitors/', all_visitors, name='get_all_visitors'),
+    path('visitor/<str:pk>/', visitor_by_id, name='get_or_delete_specific_visitor')
 ]
