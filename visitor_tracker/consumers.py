@@ -22,6 +22,7 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
     
     # _______________RECEIVE FROM PORTFOLIO________________
     async def receive_from_portfolio(self, text_data):
+        print("ATO AM FROM PORTFOLIO")
         text_data_json = json.loads(text_data)
         data = text_data_json['data']
         # verification de l'existence de l'uuid (qui vient du côté client)
@@ -67,7 +68,6 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 'uuid': str(visitor_uuid),
             }
         )
-
     # _______________RECEIVE FROM WOOSEEANDY________________
     async def receive_from_wooseeandy(self, text_data):
         text_data_json = json.loads(text_data)
@@ -170,10 +170,10 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
     # ________________RECEIVE___________________
     async def receive(self, text_data):
         if self.room_name == "user_d4f8a1b3c6e9f2g7h0j5k8l2m9n3p4q":
-            self.receive_from_portfolio(text_data)
+            await self.receive_from_portfolio(text_data)
             print("______________FROM_PORTFOLIO___________")
         elif self.room_name == "user_a3b7e8f9c2d4g5h6j0k1l2m3n9p8q7r":
-            self.receive_from_wooseeandy(text_data)
+            await self.receive_from_wooseeandy(text_data)
             print("______________FROM_WOOSEEANDY___________")
     
     # this focntion combine uuid_sender and connexion_alert_sender

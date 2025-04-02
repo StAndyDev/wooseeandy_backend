@@ -1,7 +1,7 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from visitor_tracker.models import Visitor
+from visitor_tracker.models import Visitor, VisitInfo
 from .serializers import VisitorSerializer
 from visitor_tracker.utils.validators import is_valid_uuid
 from django.shortcuts import get_object_or_404
@@ -20,8 +20,20 @@ def visitor_by_id(request, pk):
     else :
         visitor = get_object_or_404(Visitor, id=pk)
         if request.method == 'GET':
-            visitorFound = VisitorSerializer(visitor)
-            return Response(visitorFound.data)
+            visitor_found = VisitorSerializer(visitor)
+            return Response(visitor_found.data)
         elif request.method == 'DELETE':
             visitor.delete()
             return Response({"succes": "Visitor deleted succesfuly"}, status=status.HTTP_204_NO_CONTENT)
+
+@api_view(['PATCH'])
+def patch_visit_info(request, pk):
+    try:
+        visit_info = VisitInfo.objects.get(pk=pk)
+    except VisitInfo.DoesNotExist:
+        return Response({"error": "Visit info not found"}, status=status.HTTP_404_NOT_FOUND)
+    serializer = VisitorSerializer(visit_info, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
