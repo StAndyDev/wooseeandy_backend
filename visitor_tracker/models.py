@@ -18,6 +18,7 @@ class VisitInfo(models.Model):
     visit_start_datetime = models.DateTimeField(auto_now_add=True)
     visit_end_datetime = models.DateTimeField(blank=True, null=True)
     visit_duration = models.DurationField(blank=True, null=True)
+    is_read = models.BooleanField(default=False)
 
     class Meta:
         indexes = [
