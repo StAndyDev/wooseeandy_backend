@@ -12,17 +12,76 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
         self.group_name = "live_visitors"
         self.room_name = None
+
         self.alert_returning_visitor = ""
         self.alert_new_visitor = ""
         self.alert_disconnected_visitor = ""
         self.start_datetime = None
         self.visit_end_datetime = None
     
+    # ======================== CONNECT =============================
+    async def connect(self):
+        query_string = self.scope["query_string"].decode() # get query string
+        token = None
+        if "token=" in query_string:
+            token = query_string.split("token=")[1] # get token
+        
+        if token == PORTFOLIO_TOKEN:
+            self.room_name = f"user_{token}"
+            await self.channel_layer.group_add(
+                self.room_name, self.channel_name
+            )
+            await self.accept()
+            print("_______________CONNEXION VENANT DU PORTFOLIO ETABLIE_____________.")
+        elif token == WOOSEEANDY_TOKEN:
+            self.room_name = f"user_{token}"
+            await self.channel_layer.group_add(
+                self.room_name, self.channel_name
+            )
+            await self.accept()
+            print("_______________CONNEXION VENANT DE WOOSEEANDY ETABLIE _____________.")
+        else:
+            # Fermer la connexion si le token est invalide
+            print("____________connexion fermé_____________")
+            await self.close()
+    
+    # ====================== DISCONNECT ========================
+    async def disconnect(self, close_code):
+        if self.room_name == f"user_{PORTFOLIO_TOKEN}":
+            visitor_uuid = self.scope.get('visitor_uuid')
+            if visitor_uuid:
+                self.visit_end_datetime = timezone.now()
+                # Mettre à jour la visite dans la base de données
+                await self.update_visit_info(visitor_uuid, self.visit_end_datetime)
+                self.alert_disconnected_visitor = f"Visiteur {visitor_uuid} déconnecté."
+                print(self.alert_disconnected_visitor)
+            else:
+                print("Visiteur non identifié déconnecté.")
+
+            await self.channel_layer.group_send(
+                self.group_name,
+                {
+                    'type': 'disconnect_alert_sender', # appel la méthode disconnect_alert_sender
+                    'disconnected_visitor': self.alert_disconnected_visitor,
+                    'end_datetime': self.visit_end_datetime.strftime("%Y-%m-%d %H:%M:%S") if self.visit_end_datetime else None,
+                }
+            )
+            await self.channel_layer.group_discard(
+                self.room_name,
+                self.channel_name
+            )
+        elif self.room_name == f"user_{WOOSEEANDY_TOKEN}":
+            await self.channel_layer.group_discard(
+                self.room_name,
+                self.channel_name
+            )
+            print("wooseeandy app disconnected")
+    
     # _______________RECEIVE FROM PORTFOLIO________________
     async def receive_from_portfolio(self, text_data):
-        print("ATO AM FROM PORTFOLIO")
         text_data_json = json.loads(text_data)
         data = text_data_json['data']
         # verification de l'existence de l'uuid (qui vient du côté client)
@@ -62,7 +121,7 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
             )
         # Diffuser le message à tous les rooms WebSockets connectés
         await self.channel_layer.group_send(
-            self.room_name,
+            self.group_name,
             {
                 'type': 'uuid_sender',
                 'uuid': str(visitor_uuid),
@@ -122,59 +181,13 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
             }
         )
     
-    # _______________CONNECT_________________
-    async def connect(self):
-        query_string = self.scope["query_string"].decode() # get query string
-        token = None
-        if "token=" in query_string:
-            token = query_string.split("token=")[1] # get token
-            print(f"TOKEN______ {token}")
-        if token in [PORTFOLIO_TOKEN, WOOSEEANDY_TOKEN]:
-            self.room_name = f"user_{token}"  # Identifiant unique basé sur le token
-            await self.channel_layer.group_add(
-                self.room_name, self.channel_name
-            )
-            await self.accept()
-            print("_______________Connexion établie_____________.")
-        else:
-            # Fermer la connexion si le token est invalide
-            await self.close()
-
-    
-    # _________________DISCONNECT________________
-    async def disconnect(self, close_code):
-        visitor_uuid = self.scope.get('visitor_uuid')
-        if visitor_uuid:
-            self.visit_end_datetime = timezone.now()
-            # Mettre à jour la visite dans la base de données
-            await self.update_visit_info(visitor_uuid, self.visit_end_datetime)
-            self.alert_disconnected_visitor = f"Visiteur {visitor_uuid} déconnecté."
-            print(self.alert_disconnected_visitor)
-        else:
-            print("Visiteur non identifié déconnecté.")
-
-        await self.channel_layer.group_send(
-            self.group_name,
-            {
-                'type': 'disconnect_alert_sender', # appel la méthode disconnect_alert_sender
-                'disconnected_visitor': self.alert_disconnected_visitor,
-                'end_datetime': self.visit_end_datetime.strftime("%Y-%m-%d %H:%M:%S") if self.visit_end_datetime else None,
-            }
-        )
-
-        await self.channel_layer.group_discard(
-            self.group_name,
-            self.channel_name
-        )
     
     # ________________RECEIVE___________________
     async def receive(self, text_data):
-        if self.room_name == "user_d4f8a1b3c6e9f2g7h0j5k8l2m9n3p4q":
+        if self.room_name == f"user_{PORTFOLIO_TOKEN}":
             await self.receive_from_portfolio(text_data)
-            print("______________FROM_PORTFOLIO___________")
-        elif self.room_name == "user_a3b7e8f9c2d4g5h6j0k1l2m3n9p8q7r":
+        elif self.room_name == f"user_{WOOSEEANDY_TOKEN}":
             await self.receive_from_wooseeandy(text_data)
-            print("______________FROM_WOOSEEANDY___________")
     
     # this focntion combine uuid_sender and connexion_alert_sender
     async def combined_sender(self, event):
