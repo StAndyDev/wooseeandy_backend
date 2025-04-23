@@ -17,6 +17,7 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.room_name = None
+        self.wooseeandy_id = ""
         self.alert_returning_visitor = ""
         self.alert_new_visitor = ""
         self.alert_disconnected_visitor = ""
@@ -29,7 +30,7 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
         token = None
         if "token=" in query_string:
             token = query_string.split("token=")[1] # get token
-        
+        # portfolio connexion
         if token == PORTFOLIO_TOKEN:
             self.room_name = f"user_{token}"
             await self.channel_layer.group_add(
@@ -37,10 +38,15 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
             )
             await self.accept()
             print("----------- CONNEXION VENANT DU PORTFOLIO ETABLIE -----------")
+        # wooseeadndy connexion
         elif token == WOOSEEANDY_TOKEN:
             self.room_name = f"user_{token}"
+            self.wooseeandy_id = f"user_{uuid.uuid4()}" # créer un uuid pour chaque connexion
             await self.channel_layer.group_add(
                 self.room_name, self.channel_name
+            )
+            await self.channel_layer.group_add(
+                self.wooseeandy_id, self.channel_name
             )
             await self.accept()
             print("----------- CONNEXION VENANT DE WOOSEEANDY ETABLIE -----------")
@@ -52,16 +58,16 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 # Récupérer les messages du cache
                 list_visitors = VisitorTrackerConsumer.list_returning_visitors + VisitorTrackerConsumer.list_new_visitors
                 list_visitors = list(set(list_visitors))
-                for uuid in list_visitors:
-                    messages = cache.get(uuid)
+                print(f"*****************list_visitors*************** : {list_visitors}")
+                for val in list_visitors:
+                    messages = cache.get(val)
                     if messages:
                         for message in messages:
                             # Diffuser le message au room du portfolio
                             await self.channel_layer.group_send(
-                                f"user_{WOOSEEANDY_TOKEN}",
+                                self.wooseeandy_id,
                                 message
                             )
-                            cache.delete(uuid)
         else:
             # Fermer la connexion si le token est invalide
             print("-------- connexion fermé --------")
@@ -106,7 +112,7 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
         # DECONNECTION DE L'APP WOOSEEANDY
         elif self.room_name == f"user_{WOOSEEANDY_TOKEN}":
             await self.channel_layer.group_discard(
-                self.room_name,
+                self.wooseeandy_id,
                 self.channel_name
             )
             print("wooseeandy app disconnected")
