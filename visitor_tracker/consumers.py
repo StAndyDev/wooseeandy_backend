@@ -4,6 +4,7 @@ from .models import Visitor, VisitInfo
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from visitor_tracker.utils.validators import is_valid_uuid
+from django.core.cache import cache
 
 PORTFOLIO_TOKEN = "d4f8a1b3c6e9f2g7h0j5k8l2m9n3p4q"
 WOOSEEANDY_TOKEN = "a3b7e8f9c2d4g5h6j0k1l2m3n9p8q7r"
@@ -35,22 +36,40 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 self.room_name, self.channel_name
             )
             await self.accept()
-            print("_______________CONNEXION VENANT DU PORTFOLIO ETABLIE_____________.")
+            print("----------- CONNEXION VENANT DU PORTFOLIO ETABLIE -----------")
         elif token == WOOSEEANDY_TOKEN:
             self.room_name = f"user_{token}"
             await self.channel_layer.group_add(
                 self.room_name, self.channel_name
             )
             await self.accept()
-            print("_______________CONNEXION VENANT DE WOOSEEANDY ETABLIE _____________.")
+            print("----------- CONNEXION VENANT DE WOOSEEANDY ETABLIE -----------")
+            is_cache_empty = not VisitorTrackerConsumer.list_returning_visitors or not VisitorTrackerConsumer.list_new_visitors
+            if not is_cache_empty:
+                print("Le cache est vide, il n'y a pas de message à envoyer.")
+            else:
+                print("Le cache n'est pas vide, il y a des messages à envoyer.")
+                # Récupérer les messages du cache
+                list_visitors = VisitorTrackerConsumer.list_returning_visitors + VisitorTrackerConsumer.list_new_visitors
+                list_visitors = list(set(list_visitors))
+                for uuid in list_visitors:
+                    messages = cache.get(uuid)
+                    if messages:
+                        for message in messages:
+                            # Diffuser le message au room du portfolio
+                            await self.channel_layer.group_send(
+                                f"user_{WOOSEEANDY_TOKEN}",
+                                message
+                            )
+                            cache.delete(uuid)
         else:
             # Fermer la connexion si le token est invalide
-            print("____________connexion fermé_____________")
+            print("-------- connexion fermé --------")
             await self.close()
     
     # ====================== DISCONNECT ========================
     async def disconnect(self, close_code):
-        # deconnection du portfolio
+        # DECONNECTION DU PORTFOLIO
         if self.room_name == f"user_{PORTFOLIO_TOKEN}":
             visitor_uuid = self.scope.get('visitor_uuid')
             if visitor_uuid:
@@ -75,11 +94,16 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                     'end_datetime': self.visit_end_datetime.strftime("%Y-%m-%d %H:%M:%S") if self.visit_end_datetime else None,
                 }
             )
+
             await self.channel_layer.group_discard(
                 self.room_name,
                 self.channel_name
             )
-        # deconnection de l'app wooseeandy
+            # vider le cache
+            if cache.get(visitor_uuid):
+                cache.delete(visitor_uuid)
+
+        # DECONNECTION DE L'APP WOOSEEANDY
         elif self.room_name == f"user_{WOOSEEANDY_TOKEN}":
             await self.channel_layer.group_discard(
                 self.room_name,
@@ -91,65 +115,70 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
     async def receive_from_portfolio(self, text_data):
         text_data_json = json.loads(text_data)
         data = text_data_json['data']
-        # verification de l'existence de l'uuid (qui vient du côté client)
-        if data.get("uuidExists") and data["uuidExists"] != "undefined" and is_valid_uuid(data["uuidExists"]) == True :
-            visitor_uuid = data["uuidExists"]
-            id_exists = await self.check_visitor_exists(visitor_uuid)
-            if (not id_exists):
+        # verification de type de message | le visiteur n'est pas encore connecté
+        if data.get("type") == "visitor-infos" :
+            if data.get("uuidExists") and data["uuidExists"] != "undefined" and is_valid_uuid(data["uuidExists"]) == True:
+                visitor_uuid = data["uuidExists"]
+                id_exists = await self.check_visitor_exists(visitor_uuid)
+                if (not id_exists):
+                    await self.save_visitor(id = visitor_uuid ,navigator_info = data["navigator_info"], os = data["os"], device_type = data["device_type"])
+                self.scope['visitor_uuid'] = visitor_uuid # stocker l'uuid dans le scope du consumer
+                self.alert_returning_visitor = f"Le visiteur {visitor_uuid} est revenu consulter votre portfolio."
+                VisitorTrackerConsumer.list_returning_visitors.append(visitor_uuid)
+                print(self.alert_returning_visitor)
+                # time of visit
+                self.start_datetime = timezone.now()
+                # # save visit info
+                await self.save_visit_info(
+                    visitor = visitor_uuid,
+                    ip_address = data["ip_address"],
+                    location_approx = data["location_approx"],
+                    visit_start_datetime = self.start_datetime,
+                )
+            else:
+                visitor_uuid = uuid.uuid4()
+                self.scope['visitor_uuid'] = visitor_uuid
+                self.alert_new_visitor = f"Un nouveau visiteur {visitor_uuid} consulte votre portfolio."
+                VisitorTrackerConsumer.list_new_visitors.append(visitor_uuid)
+                print(self.alert_new_visitor)
+                # save visitor
                 await self.save_visitor(id = visitor_uuid ,navigator_info = data["navigator_info"], os = data["os"], device_type = data["device_type"])
-            
-            self.scope['visitor_uuid'] = visitor_uuid # stocker l'uuid dans le scope du consumer
-            self.alert_returning_visitor = f"Le visiteur {visitor_uuid} est revenu consulter votre portfolio."
-            VisitorTrackerConsumer.list_returning_visitors.append(visitor_uuid)
-            print(self.alert_returning_visitor)
-            # time of visit
-            self.start_datetime = timezone.now()
-            # # save visit info
-            await self.save_visit_info(
-                visitor = visitor_uuid,
-                ip_address = data["ip_address"],
-                location_approx = data["location_approx"],
-                visit_start_datetime = self.start_datetime,
-            )
-        else:
-            visitor_uuid = uuid.uuid4()
-            self.scope['visitor_uuid'] = visitor_uuid
-            self.alert_new_visitor = f"Un nouveau visiteur {visitor_uuid} consulte votre portfolio."
-            VisitorTrackerConsumer.list_new_visitors.append(visitor_uuid)
-            print(self.alert_new_visitor)
-            # save visitor
-            await self.save_visitor(id = visitor_uuid ,navigator_info = data["navigator_info"], os = data["os"], device_type = data["device_type"])
-            # time of visit
-            self.start_datetime = timezone.now()
-            # save visit info
-            await self.save_visit_info(
-                visitor = visitor_uuid,
-                ip_address = data["ip_address"],
-                location_approx = data["location_approx"],
-                visit_start_datetime = self.start_datetime,
-            )
-        # Diffuser le message au room du portfolio
-        await self.channel_layer.group_send(
-            f"user_{PORTFOLIO_TOKEN}",
-            {
-                'type': 'uuid_sender',
-                'uuid': str(visitor_uuid),
-            }
-        )
-        # Diffuser le message à l'app wooseeandy
-        await self.channel_layer.group_send(
-            f"user_{WOOSEEANDY_TOKEN}",
-            {
-                'type': 'combined_sender',
-                'returning_visitor': self.alert_returning_visitor,
-                'new_visitor': self.alert_new_visitor,
-                'start_datetime': self.start_datetime.strftime("%Y-%m-%d %H:%M:%S") if self.start_datetime else None ,
-                'disconnected_visitor': self.alert_disconnected_visitor,
-                'end_datetime': self.visit_end_datetime.strftime("%Y-%m-%d %H:%M:%S") if self.visit_end_datetime else None,
-                'uuid': str(visitor_uuid),
-            }
-        )
+                # time of visit
+                self.start_datetime = timezone.now()
+                # save visit info
+                await self.save_visit_info(
+                    visitor = visitor_uuid,
+                    ip_address = data["ip_address"],
+                    location_approx = data["location_approx"],
+                    visit_start_datetime = self.start_datetime,
+                )
 
+            # Diffuser le message au room du portfolio
+            await self.channel_layer.group_send(
+                f"user_{PORTFOLIO_TOKEN}",
+                {
+                    'type': 'uuid_sender',
+                    'uuid': str(visitor_uuid),
+                }
+            )
+            message_data = {
+                    'type': 'combined_sender',
+                    'returning_visitor': self.alert_returning_visitor,
+                    'new_visitor': self.alert_new_visitor,
+                    'start_datetime': self.start_datetime.strftime("%Y-%m-%d %H:%M:%S") if self.start_datetime else None ,
+                    'disconnected_visitor': self.alert_disconnected_visitor,
+                    'end_datetime': self.visit_end_datetime.strftime("%Y-%m-%d %H:%M:%S") if self.visit_end_datetime else None,
+                    'uuid': str(visitor_uuid),
+                }
+            # Diffuser le message à l'app wooseeandy
+            await self.channel_layer.group_send(
+                f"user_{WOOSEEANDY_TOKEN}",
+                message_data
+            )
+            # mis en cache du message
+            mes = cache.get(visitor_uuid, [])
+            mes.append(message_data)
+            cache.set(visitor_uuid, mes, timeout=9300)
 
 
     # _______________RECEIVE FROM WOOSEEANDY________________
