@@ -2,7 +2,7 @@ from django.db import models
 
 # VISITOR
 class Visitor(models.Model):
-    id = models.UUIDField(primary_key=True, editable=False)   
+    id_visitor = models.UUIDField(primary_key=True, editable=False)   
     navigator_info = models.TextField(blank=True, null=True)
     os = models.CharField(max_length=255, blank=True, null=True)
     device_type = models.CharField(max_length=50, blank=True, null=True)
@@ -12,6 +12,7 @@ class Visitor(models.Model):
 
 # VISIT INFO
 class VisitInfo(models.Model):
+    id_visit_info = models.UUIDField(primary_key=True, editable=False) 
     visitor = models.ForeignKey(Visitor, on_delete=models.CASCADE, related_name='visits')
     ip_address = models.GenericIPAddressField()
     location_approx = models.CharField(max_length=255, blank=True, null=True)

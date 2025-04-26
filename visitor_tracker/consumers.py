@@ -78,10 +78,11 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
         # DECONNECTION DU PORTFOLIO
         if self.room_name == f"user_{PORTFOLIO_TOKEN}":
             visitor_uuid = self.scope.get('visitor_uuid')
-            if visitor_uuid:
+            visit_info_uuid = self.scope.get('visit_info_uuid')
+            if visit_info_uuid:
                 self.visit_end_datetime = timezone.now()
                 # Mettre à jour la visite dans la base de données
-                await self.update_visit_info(visitor_uuid, self.visit_end_datetime)
+                await self.update_visit_info(visit_info_uuid, self.visit_end_datetime)
                 self.alert_disconnected_visitor = f"Visiteur {visitor_uuid} déconnecté."
                 if visitor_uuid in VisitorTrackerConsumer.list_returning_visitors :
                     VisitorTrackerConsumer.list_returning_visitors.remove(visitor_uuid)
@@ -96,7 +97,6 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 {
                     'type': 'disconnect_alert_sender', # appel la méthode disconnect_alert_sender
                     'is_new_visitor': True if visitor_uuid in VisitorTrackerConsumer.list_new_visitors else False,
-                    'disconnected_visitor': self.alert_disconnected_visitor,
                     'end_datetime': self.visit_end_datetime.strftime("%Y-%m-%d %H:%M:%S") if self.visit_end_datetime else None,
                 }
             )
@@ -121,13 +121,14 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
     async def receive_from_portfolio(self, text_data):
         text_data_json = json.loads(text_data)
         data = text_data_json['data']
+        # ********************* DATA : VISITOR-INFOS ************************
         # verification de type de message | le visiteur n'est pas encore connecté
         if data.get("type") == "visitor-infos" :
             if data.get("uuidExists") and data["uuidExists"] != "undefined" and is_valid_uuid(data["uuidExists"]) == True:
                 visitor_uuid = data["uuidExists"]
                 id_exists = await self.check_visitor_exists(visitor_uuid)
                 if (not id_exists):
-                    await self.save_visitor(id = visitor_uuid ,navigator_info = data["navigator_info"], os = data["os"], device_type = data["device_type"])
+                    await self.save_visitor(id_visitor = visitor_uuid ,navigator_info = data["navigator_info"], os = data["os"], device_type = data["device_type"])
                 self.scope['visitor_uuid'] = visitor_uuid # stocker l'uuid dans le scope du consumer
                 self.alert_returning_visitor = f"Le visiteur {visitor_uuid} est revenu consulter votre portfolio."
                 VisitorTrackerConsumer.list_returning_visitors.append(visitor_uuid)
@@ -135,7 +136,10 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 # time of visit
                 self.start_datetime = timezone.now()
                 # # save visit info
+                visit_info_uuid = uuid.uuid4()
+                self.scope['visit_info_uuid'] = visit_info_uuid
                 await self.save_visit_info(
+                    id_visit_info = visit_info_uuid,
                     visitor = visitor_uuid,
                     ip_address = data["ip_address"],
                     location_approx = data["location_approx"],
@@ -148,11 +152,14 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 VisitorTrackerConsumer.list_new_visitors.append(visitor_uuid)
                 print(self.alert_new_visitor)
                 # save visitor
-                await self.save_visitor(id = visitor_uuid ,navigator_info = data["navigator_info"], os = data["os"], device_type = data["device_type"])
+                await self.save_visitor(id_visitor = visitor_uuid ,navigator_info = data["navigator_info"], os = data["os"], device_type = data["device_type"])
                 # time of visit
                 self.start_datetime = timezone.now()
                 # save visit info
+                visit_info_uuid = uuid.uuid4()
+                self.scope['visit_info_uuid'] = visit_info_uuid
                 await self.save_visit_info(
+                    id_visit_info = visit_info_uuid,
                     visitor = visitor_uuid,
                     ip_address = data["ip_address"],
                     location_approx = data["location_approx"],
@@ -168,13 +175,17 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 }
             )
             message_data = {
-                    'type': 'combined_sender',
+                    'type': 'connexion_alert_sender',
+                    'uuid': str(visitor_uuid),
+                    'visit_info_uuid': str(visit_info_uuid),
                     'returning_visitor': self.alert_returning_visitor,
                     'new_visitor': self.alert_new_visitor,
                     'start_datetime': self.start_datetime.strftime("%Y-%m-%d %H:%M:%S") if self.start_datetime else None ,
-                    'disconnected_visitor': self.alert_disconnected_visitor,
-                    'end_datetime': self.visit_end_datetime.strftime("%Y-%m-%d %H:%M:%S") if self.visit_end_datetime else None,
-                    'uuid': str(visitor_uuid),
+                    'navigator_info': data["navigator_info"],
+                    'os': data["os"],
+                    'device_type': data["device_type"],
+                    'ip_address': data["ip_address"],
+                    'location_approx': data["location_approx"],
                 }
             # Diffuser le message à l'app wooseeandy
             await self.channel_layer.group_send(
@@ -184,7 +195,7 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
             # mis en cache du message
             mes = cache.get(visitor_uuid, [])
             mes.append(message_data)
-            cache.set(visitor_uuid, mes, timeout=9300)
+            cache.set(visitor_uuid, mes, timeout=43200) # 12h
 
 
     # _______________RECEIVE FROM WOOSEEANDY________________
@@ -192,54 +203,6 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
         text_data_json = json.loads(text_data)
         # data = text_data_json['data']
         # print(f"ITO EEEEEEEE {data}")
-        # # verification de l'existence de l'uuid (qui vient du côté client)
-        # if data.get("uuidExists") and data["uuidExists"] != "undefined" and is_valid_uuid(data["uuidExists"]) == True :
-        #     visitor_uuid = data["uuidExists"]
-        #     id_exists = await self.check_visitor_exists(visitor_uuid)
-        #     if (not id_exists):
-        #         await self.save_visitor(id = visitor_uuid ,navigator_info = data["navigator_info"], os = data["os"], device_type = data["device_type"])
-            
-        #     self.scope['visitor_uuid'] = visitor_uuid # stocker l'uuid dans le scope du consumer
-        #     self.alert_returning_visitor = f"Le visiteur {visitor_uuid} est revenu consulter votre portfolio."
-        #     print(self.alert_returning_visitor)
-        #     # time of visit
-        #     self.start_datetime = timezone.now()
-        #     # # save visit info
-        #     await self.save_visit_info(
-        #         visitor = visitor_uuid,
-        #         ip_address = data["ip_address"],
-        #         location_approx = data["location_approx"],
-        #         visit_start_datetime = self.start_datetime,
-        #     )
-        # else:
-        #     visitor_uuid = uuid.uuid4()
-        #     self.scope['visitor_uuid'] = visitor_uuid
-        #     self.alert_new_visitor = f"Un nouveau visiteur {visitor_uuid} consulte votre portfolio."
-        #     print(self.alert_new_visitor)
-        #     # save visitor
-        #     await self.save_visitor(id = visitor_uuid ,navigator_info = data["navigator_info"], os = data["os"], device_type = data["device_type"])
-        #     # time of visit
-        #     self.start_datetime = timezone.now()
-        #     # save visit info
-        #     await self.save_visit_info(
-        #         visitor = visitor_uuid,
-        #         ip_address = data["ip_address"],
-        #         location_approx = data["location_approx"],
-        #         visit_start_datetime = self.start_datetime,
-        #     )
-        # # Diffuser le message à tous les WebSockets connectés
-        # await self.channel_layer.group_send(
-        #     self.room_name,
-        #     {
-        #         'type': 'combined_sender',
-        #         'returning_visitor': self.alert_returning_visitor,
-        #         'new_visitor': self.alert_new_visitor,
-        #         'start_datetime': self.start_datetime.strftime("%Y-%m-%d %H:%M:%S") if self.start_datetime else None ,
-        #         'disconnected_visitor': self.alert_disconnected_visitor,
-        #         'end_datetime': self.visit_end_datetime.strftime("%Y-%m-%d %H:%M:%S") if self.visit_end_datetime else None,
-        #         'uuid': str(visitor_uuid),
-        #     }
-        # )
     
     
     # ________________RECEIVE___________________
@@ -250,9 +213,9 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
             await self.receive_from_wooseeandy(text_data)
     
     # this focntion combine uuid_sender and connexion_alert_sender
-    async def combined_sender(self, event):
-            await self.connexion_alert_sender(event)
-            await self.uuid_sender(event)
+    # async def combined_sender(self, event):
+    #         await self.connexion_alert_sender(event)
+    #         await self.uuid_sender(event)
 
     # Cette méthode est appelée lorsqu'un message est reçu du groupe ,Envoyer le message à l'élément WebSocket
     async def uuid_sender(self, event):
@@ -262,22 +225,35 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
         }))
 
     async def connexion_alert_sender(self, event):
+        visitor_uuid = event['uuid']
+        visit_info_uuid = event['visit_info_uuid']
         returning_visitor = event['returning_visitor']
         new_visitor = event['new_visitor']
         start_datetime = event['start_datetime']
+        navigator_info = event['navigator_info']
+        os = event['os']
+        device_type = event['device_type']
+        ip_address = event['ip_address']
+        location_approx = event['location_approx']
+
         await self.send(text_data=json.dumps({
-            'alert_type': 'visitor_alert',  # ceci permet de distinguer les types d'alerte en wooseeandy app
+            'alert_type': 'connected_alert',  # ceci permet de distinguer les types d'alerte en wooseeandy app
+            'visitor_uuid': visitor_uuid,
+            'visit_info_uuid': visit_info_uuid,
             'alert_returning_visitor': returning_visitor,
             'alert_new_visitor': new_visitor,
-            'visit_start_datetime': start_datetime ,
+            'visit_start_datetime': start_datetime,
+            'navigator_info': navigator_info,
+            'os': os,
+            'device_type': device_type,
+            'ip_address': ip_address,
+            'location_approx': location_approx,
         }))
     async def disconnect_alert_sender(self, event):
-        disconnected_visitor = event['disconnected_visitor']
         is_new_visitor = event['is_new_visitor'] # bool, permet de savoir si le visiteur déconnecté est un nouveau ou pas
         end_datetime = event['end_datetime']
         await self.send(text_data=json.dumps({
             'alert_type': 'disconnected_alert',  # ceci permet de distinguer les types d'alerte en wooseeandy app
-            'alert_disconnected_visitor': disconnected_visitor,
             'is_new_visitor': is_new_visitor,
             'visit_end_datetime': end_datetime,
         }))
@@ -285,21 +261,22 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
     # une fonction synchrone pour vérifier l'existence du visiteur
     @database_sync_to_async
     def check_visitor_exists(self, visitor_uuid):
-        return Visitor.objects.filter(id = visitor_uuid).exists()
+        return Visitor.objects.filter(id_visitor = visitor_uuid).exists()
     
     @database_sync_to_async
-    def save_visitor(self, id, navigator_info, os, device_type):
+    def save_visitor(self, id_visitor, navigator_info, os, device_type):
         return Visitor.objects.create(
-            id = id,
+            id_visitor = id_visitor,
             navigator_info = navigator_info,
             os = os,
             device_type = device_type
         )
     
     @database_sync_to_async
-    def save_visit_info(self, visitor, ip_address, location_approx, visit_start_datetime):
-        visitor_instance = Visitor.objects.get(id=visitor) # get id
+    def save_visit_info(self, id_visit_info, visitor, ip_address, location_approx, visit_start_datetime):
+        visitor_instance = Visitor.objects.get(id_visitor=visitor) # get id
         return VisitInfo.objects.create(
+            id_visit_info = id_visit_info,
             visitor = visitor_instance,
             ip_address = ip_address,
             location_approx = location_approx,
@@ -307,8 +284,8 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
         )
     
     @database_sync_to_async
-    def update_visit_info(self, visitor_uuid, disconnected_at):
-        visit_info = VisitInfo.objects.filter(visitor = visitor_uuid).last()
+    def update_visit_info(self, visit_info_uuid, disconnected_at):
+        visit_info = VisitInfo.objects.filter(id_visit_info = visit_info_uuid).last()
         if visit_info:
             visit_info.visit_end_datetime = disconnected_at
             visit_info.visit_duration = disconnected_at - visit_info.visit_start_datetime
