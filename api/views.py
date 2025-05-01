@@ -2,10 +2,17 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from visitor_tracker.models import Visitor, VisitInfo
-from .serializers import VisitorSerializer
+from .serializers import VisitorSerializer, VisitInfoSerializer
 from visitor_tracker.utils.validators import is_valid_uuid
 from django.shortcuts import get_object_or_404
 # from drf_yasg.utils from swagger_auto_schema
+from rest_framework.generics import ListAPIView # pour la liste paginée
+
+class VisitorInfoList(ListAPIView):
+    # queryset = Visitor.objects.all().order_by('-created_at')  # tri du plus récent au plus ancien
+    queryset = VisitInfo.objects.all()
+    serializer_class = VisitInfoSerializer
+
 
 @api_view(['GET'])
 def all_visitors(request):

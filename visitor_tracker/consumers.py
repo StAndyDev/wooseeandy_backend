@@ -4,6 +4,7 @@ from .models import Visitor, VisitInfo
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from visitor_tracker.utils.validators import is_valid_uuid
+from visitor_tracker.utils.duration_utils import timedelta_to_iso8601
 from django.core.cache import cache
 
 PORTFOLIO_TOKEN = "d4f8a1b3c6e9f2g7h0j5k8l2m9n3p4q"
@@ -16,12 +17,13 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.visitor_uuid = None
         self.room_name = None
         self.wooseeandy_id = ""
         self.alert_returning_visitor = ""
         self.alert_new_visitor = ""
         self.alert_disconnected_visitor = ""
-        self.start_datetime = None
+        self.visit_start_datetime = None
         self.visit_end_datetime = None
     
     # ======================== CONNECT =============================
@@ -77,7 +79,7 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, close_code):
         # DECONNECTION DU PORTFOLIO
         if self.room_name == f"user_{PORTFOLIO_TOKEN}":
-            visitor_uuid = self.scope.get('visitor_uuid')
+            visitor_uuid = self.visitor_uuid
             visit_info_uuid = self.scope.get('visit_info_uuid')
             if visit_info_uuid:
                 self.visit_end_datetime = timezone.now()
@@ -97,7 +99,9 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 {
                     'type': 'disconnect_alert_sender', # appel la méthode disconnect_alert_sender
                     'is_new_visitor': True if visitor_uuid in VisitorTrackerConsumer.list_new_visitors else False,
-                    'end_datetime': self.visit_end_datetime.strftime("%Y-%m-%d %H:%M:%S") if self.visit_end_datetime else None,
+                    'visit_info_uuid': str(visit_info_uuid),
+                    'end_datetime': self.visit_end_datetime.isoformat() if self.visit_end_datetime else None,
+                    'visit_duration': timedelta_to_iso8601(self.visit_end_datetime - self.visit_start_datetime) if self.visit_start_datetime and self.visit_end_datetime else None,
                 }
             )
 
@@ -129,12 +133,12 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 id_exists = await self.check_visitor_exists(visitor_uuid)
                 if (not id_exists):
                     await self.save_visitor(id_visitor = visitor_uuid ,navigator_info = data["navigator_info"], os = data["os"], device_type = data["device_type"])
-                self.scope['visitor_uuid'] = visitor_uuid # stocker l'uuid dans le scope du consumer
+                self.visitor_uuid = visitor_uuid # différent scope pour chaque visiteur
                 self.alert_returning_visitor = f"Le visiteur {visitor_uuid} est revenu consulter votre portfolio."
                 VisitorTrackerConsumer.list_returning_visitors.append(visitor_uuid)
                 print(self.alert_returning_visitor)
                 # time of visit
-                self.start_datetime = timezone.now()
+                self.visit_start_datetime = timezone.now()
                 # # save visit info
                 visit_info_uuid = uuid.uuid4()
                 self.scope['visit_info_uuid'] = visit_info_uuid
@@ -143,18 +147,18 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                     visitor = visitor_uuid,
                     ip_address = data["ip_address"],
                     location_approx = data["location_approx"],
-                    visit_start_datetime = self.start_datetime,
+                    visit_start_datetime = self.visit_start_datetime,
                 )
             else:
                 visitor_uuid = uuid.uuid4()
-                self.scope['visitor_uuid'] = visitor_uuid
+                self.visitor_uuid = visitor_uuid
                 self.alert_new_visitor = f"Un nouveau visiteur {visitor_uuid} consulte votre portfolio."
                 VisitorTrackerConsumer.list_new_visitors.append(visitor_uuid)
                 print(self.alert_new_visitor)
                 # save visitor
                 await self.save_visitor(id_visitor = visitor_uuid ,navigator_info = data["navigator_info"], os = data["os"], device_type = data["device_type"])
                 # time of visit
-                self.start_datetime = timezone.now()
+                self.visit_start_datetime = timezone.now()
                 # save visit info
                 visit_info_uuid = uuid.uuid4()
                 self.scope['visit_info_uuid'] = visit_info_uuid
@@ -163,7 +167,7 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                     visitor = visitor_uuid,
                     ip_address = data["ip_address"],
                     location_approx = data["location_approx"],
-                    visit_start_datetime = self.start_datetime,
+                    visit_start_datetime = self.visit_start_datetime,
                 )
 
             # Diffuser le message au room du portfolio
@@ -180,7 +184,7 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                     'visit_info_uuid': str(visit_info_uuid),
                     'returning_visitor': self.alert_returning_visitor,
                     'new_visitor': self.alert_new_visitor,
-                    'start_datetime': self.start_datetime.strftime("%Y-%m-%d %H:%M:%S") if self.start_datetime else None ,
+                    'visit_start_datetime': self.visit_start_datetime.isoformat() if self.visit_start_datetime else None,
                     'navigator_info': data["navigator_info"],
                     'os': data["os"],
                     'device_type': data["device_type"],
@@ -195,7 +199,7 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
             # mis en cache du message
             mes = cache.get(visitor_uuid, [])
             mes.append(message_data)
-            cache.set(visitor_uuid, mes, timeout=43200) # 12h
+            cache.set(visitor_uuid, mes, timeout=3600) # 1h
 
 
     # _______________RECEIVE FROM WOOSEEANDY________________
@@ -229,7 +233,7 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
         visit_info_uuid = event['visit_info_uuid']
         returning_visitor = event['returning_visitor']
         new_visitor = event['new_visitor']
-        start_datetime = event['start_datetime']
+        visit_start_datetime = event['visit_start_datetime']
         navigator_info = event['navigator_info']
         os = event['os']
         device_type = event['device_type']
@@ -242,7 +246,7 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
             'visit_info_uuid': visit_info_uuid,
             'alert_returning_visitor': returning_visitor,
             'alert_new_visitor': new_visitor,
-            'visit_start_datetime': start_datetime,
+            'visit_start_datetime': visit_start_datetime,
             'navigator_info': navigator_info,
             'os': os,
             'device_type': device_type,
@@ -252,10 +256,14 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
     async def disconnect_alert_sender(self, event):
         is_new_visitor = event['is_new_visitor'] # bool, permet de savoir si le visiteur déconnecté est un nouveau ou pas
         end_datetime = event['end_datetime']
+        id_visit_info = event['visit_info_uuid']
+        visit_duration = event['visit_duration']
         await self.send(text_data=json.dumps({
             'alert_type': 'disconnected_alert',  # ceci permet de distinguer les types d'alerte en wooseeandy app
             'is_new_visitor': is_new_visitor,
+            'visit_info_uuid': id_visit_info,
             'visit_end_datetime': end_datetime,
+            'visit_duration': visit_duration,
         }))
     
     # une fonction synchrone pour vérifier l'existence du visiteur

@@ -1,13 +1,14 @@
 from rest_framework import serializers
 from visitor_tracker.models import Visitor, VisitInfo
 
+
+class VisitorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Visitor
+        fields = ['id_visitor', 'navigator_info', 'os', 'device_type']
+
 class VisitInfoSerializer(serializers.ModelSerializer):
+    visitor = VisitorSerializer(read_only=True)
     class Meta:
         model = VisitInfo
         fields = '__all__'
-
-class VisitorSerializer(serializers.ModelSerializer):
-    visit_info = VisitInfoSerializer(source='visits', many=True)
-    class Meta:
-        model = Visitor
-        fields = ['id', 'navigator_info', 'os', 'device_type', 'visit_info']

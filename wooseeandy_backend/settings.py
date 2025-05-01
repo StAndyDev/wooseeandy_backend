@@ -43,6 +43,11 @@ INSTALLED_APPS = [
     "corsheaders",
 ]
 
+REST_FRAMEWORK = {
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
+    'PAGE_SIZE': 20,
+}
+
 ASGI_APPLICATION = 'wooseeandy_backend.asgi.application'
 
 CHANNEL_LAYERS = {
@@ -67,6 +72,9 @@ MIDDLEWARE = [
 ]
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
+    'http://localhost:8081',
+    "http://localhost:19000",  # Port de Metro Bundler (Expo)
+    "http://192.168.137.1:8000",
 ]
 
 # ALLOWED_HOSTS = ['127.0.0.1', 'localhost'] # pour daphe
