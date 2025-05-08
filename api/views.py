@@ -1,46 +1,54 @@
-from rest_framework.decorators import api_view
+from visitor_tracker.models import VisitInfo, CVDownload, PortfolioDetailView
+from .serializers import VisitInfoSerializer, CVDownloadSerializer, PortfolioDetailsViewSerializer
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from visitor_tracker.models import Visitor, VisitInfo
-from .serializers import VisitorSerializer, VisitInfoSerializer
-from visitor_tracker.utils.validators import is_valid_uuid
-from django.shortcuts import get_object_or_404
 # from drf_yasg.utils from swagger_auto_schema
 from rest_framework.generics import ListAPIView # pour la liste paginée
 
+# ------ LIST API VIEW -------
 class VisitorInfoList(ListAPIView):
-    # queryset = Visitor.objects.all().order_by('-created_at')  # tri du plus récent au plus ancien
-    queryset = VisitInfo.objects.all()
+    queryset = VisitInfo.objects.all().order_by('-visit_start_datetime')  # tri du plus récent au plus ancien
     serializer_class = VisitInfoSerializer
 
+class CVDownloadList(ListAPIView):
+    queryset = CVDownload.objects.all().order_by('-download_datetime')
+    serializer_class = CVDownloadSerializer
 
-@api_view(['GET'])
-def all_visitors(request):
-    visitors = Visitor.objects.prefetch_related('visits').all()  # Optimisation
-    serializer = VisitorSerializer(visitors, many=True)
-    return Response(serializer.data)
+class PortfolioDetailsViewList(ListAPIView):
+    queryset = PortfolioDetailView.objects.all().order_by('-view_datetime')
+    serializer_class = PortfolioDetailsViewSerializer
 
-@api_view(['GET', 'DELETE'])
-def visitor_by_id(request, pk):
-    if not is_valid_uuid(pk):
-        return Response({"error": "Invalid UUID"}, status=status.HTTP_400_BAD_REQUEST)
-    else :
-        visitor = get_object_or_404(Visitor, id=pk)
-        if request.method == 'GET':
-            visitor_found = VisitorSerializer(visitor)
-            return Response(visitor_found.data)
-        elif request.method == 'DELETE':
-            visitor.delete()
-            return Response({"succes": "Visitor deleted succesfuly"}, status=status.HTTP_204_NO_CONTENT)
-
-@api_view(['PATCH'])
-def patch_visit_info(request, pk):
-    try:
-        visit_info = VisitInfo.objects.get(pk=pk)
-    except VisitInfo.DoesNotExist:
-        return Response({"error": "Visit info not found"}, status=status.HTTP_404_NOT_FOUND)
-    serializer = VisitorSerializer(visit_info, data=request.data, partial=True)
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# ------ MARK AS TRUE API ------
+# VisitInfo
+class MarkVisitInfoAsRead(APIView):
+    def post(self, request, pk, *args, **kwargs):
+        try:
+            visit_info = VisitInfo.objects.get(pk=pk)
+            visit_info.is_read = True
+            visit_info.save()
+            return Response({"message": "VisitInfo marked as read."}, status=status.HTTP_200_OK)
+        except VisitInfo.DoesNotExist:
+            return Response({"error": "VisitInfo not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+# CVDownload
+class MarkCVDownloadAsRead(APIView):
+    def post(self, request, pk, *args, **kwargs):
+        try:
+            cv_download = CVDownload.objects.get(pk=pk)
+            cv_download.is_read = True
+            cv_download.save()
+            return Response({"message": "CVDownload marked as read."}, status=status.HTTP_200_OK)
+        except CVDownload.DoesNotExist:
+            return Response({"error": "CVDownload not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+# PortfolioDetailView
+class MarkPortfolioDetailViewAsRead(APIView):
+    def post(self, request, pk, *args, **kwargs):
+        try:
+            portfolio_detail_view = PortfolioDetailView.objects.get(pk=pk)
+            portfolio_detail_view.is_read = True
+            portfolio_detail_view.save()
+            return Response({"message": "PortfolioDetailView marked as read."}, status=status.HTTP_200_OK)
+        except PortfolioDetailView.DoesNotExist:
+            return Response({"error": "PortfolioDetailView not found."}, status=status.HTTP_404_NOT_FOUND)

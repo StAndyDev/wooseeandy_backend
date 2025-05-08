@@ -6,9 +6,10 @@ class Visitor(models.Model):
     navigator_info = models.TextField(blank=True, null=True)
     os = models.CharField(max_length=255, blank=True, null=True)
     device_type = models.CharField(max_length=50, blank=True, null=True)
+    is_new_visitor = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"user {self.id} use {self.navigator_info} on {self.os} device"
+        return f"user {self.id_visitor} use {self.navigator_info} on {self.os} device"
 
 # VISIT INFO
 class VisitInfo(models.Model):
@@ -28,3 +29,25 @@ class VisitInfo(models.Model):
 
     def __str__(self):
         return f"{self.ip_address} has visited for {self.visit_duration}"
+    
+# CV DOWNLOAD
+class CVDownload(models.Model):
+    id_cv_download = models.UUIDField(primary_key=True, editable=False)
+    visitor = models.ForeignKey(Visitor, on_delete=models.CASCADE, related_name='cv_downloads')
+    download_datetime = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"downloaded by {self.visitor}"
+
+# PORTFOLIO DETAIL VIEW
+class PortfolioDetailView(models.Model):
+    id_portfolio_detail_view = models.UUIDField(primary_key=True, editable=False)
+    visitor = models.ForeignKey(Visitor, on_delete=models.CASCADE, related_name='portfolio_detail_view')
+    project_name = models.CharField(max_length=255, blank=True, null=True)
+    project_type = models.CharField(max_length=255, blank=True, null=True)
+    view_datetime = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Portfolio detail viewed by {self.visitor}"
