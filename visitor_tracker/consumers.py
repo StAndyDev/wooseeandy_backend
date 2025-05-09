@@ -12,8 +12,11 @@ WOOSEEANDY_TOKEN = "a3b7e8f9c2d4g5h6j0k1l2m3n9p8q7r"
 
 class VisitorTrackerConsumer(AsyncWebsocketConsumer):
 
-    list_returning_visitors = []
-    list_new_visitors = []
+    list_returning_visitors = []    # list des uuid de Visitor pour envoyer les alertes de deconnexion au wooseeandy
+    list_new_visitors = []  # list des uuid de Visitor pour envoyer les alertes de deconnexion au wooseeandy
+    list_visit_info = []    # list des uuid de VisitInfo pour utiliser dans le cache
+    list_cv_download = []   # list des uuid de CVDownload pour utiliser dans le cache
+    list_portfolio_detail_view = [] # list des uuid de PortfolioDetailView  pour utiliser dans le cache
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -52,41 +55,40 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
             )
             await self.accept()
             print("----------- CONNEXION VENANT DE WOOSEEANDY ETABLIE -----------")
-            is_cache_empty = not VisitorTrackerConsumer.list_returning_visitors or not VisitorTrackerConsumer.list_new_visitors
-            if not is_cache_empty:
-                print("Le cache est vide, il n'y a pas de message à envoyer.")
-            else:
-                print("Le cache n'est pas vide, il y a des messages à envoyer.")
-                # Récupérer les messages du cache
-                list_visitors = VisitorTrackerConsumer.list_returning_visitors + VisitorTrackerConsumer.list_new_visitors
-                list_visitors = list(set(list_visitors)) # supprimer les doublons
-                print(f"*****************list_visitors*************** : {list_visitors}")
-                for val in list_visitors:
-                    messages = cache.get(f"visitor_data_{val}")
-                    messages_2 = cache.get(f"cv_download_{val}")
-                    messages_3 = cache.get(f"portfolio_detail_view_{val}")
-                    if messages:
-                        for message in messages:
-                            # Diffuser le message au room du portfolio
-                            print (f"\n\n**************message à envoyé : {message}***************")
-                            await self.channel_layer.group_send(
-                                self.wooseeandy_id,
-                                message
-                            )
-                    if messages_2:
-                        for message in messages_2:
-                            # Diffuser le message au room du portfolio
-                            await self.channel_layer.group_send(
-                                self.wooseeandy_id,
-                                message
-                            )
-                    if messages_3:
-                        for message in messages_3:
-                            # Diffuser le message au room du portfolio
-                            await self.channel_layer.group_send(
-                                self.wooseeandy_id,
-                                message
-                            )
+            # Récupérer les uuid du visitInfo dans la liste
+            list_visitInfo = list(set( VisitorTrackerConsumer.list_visit_info)) # supprimer les doublons
+            for val in list_visitInfo:
+                messages = cache.get(f"visit_info_data_{val}")
+                if messages:
+                    for message in messages:
+                        # Diffuser le message au room du portfolio
+                        await self.channel_layer.group_send(
+                            self.wooseeandy_id,
+                            message
+                        )
+            # Récupérer les uuid du cv_download dans la liste
+            list_cv_download = list(set( VisitorTrackerConsumer.list_cv_download)) # supprimer les doublons
+            for val in list_cv_download:
+                messages = cache.get(f"cv_download_{val}")
+                if messages:
+                    for message in messages:
+                        # Diffuser le message au room du portfolio
+                        await self.channel_layer.group_send(
+                            self.wooseeandy_id,
+                            message
+                        )
+            # Récupérer les uuid du portfolio_detail_view dans la liste
+            list_portfolio_detail_view = list(set( VisitorTrackerConsumer.list_portfolio_detail_view)) # supprimer les doublons
+            for val in list_portfolio_detail_view:
+                messages = cache.get(f"portfolio_detail_view_{val}")
+                if messages:
+                    for message in messages:
+                        # Diffuser le message au room du portfolio
+                        await self.channel_layer.group_send(
+                            self.wooseeandy_id,
+                            message
+                        )
+
         else:
             # Fermer la connexion si le token est invalide
             print("-------- connexion fermé --------")
@@ -103,10 +105,20 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 # Mettre à jour la visite dans la base de données
                 await self.update_visit_info(visit_info_uuid, self.visit_end_datetime)
                 self.alert_disconnected_visitor = f"Visiteur {visitor_uuid} déconnecté."
+                # supprimer le visitor de la liste des visiteurs
                 if visitor_uuid in VisitorTrackerConsumer.list_returning_visitors :
                     VisitorTrackerConsumer.list_returning_visitors.remove(visitor_uuid)
                 elif visitor_uuid in VisitorTrackerConsumer.list_new_visitors :
                     VisitorTrackerConsumer.list_new_visitors.remove(visitor_uuid)
+                # supprimer le visitInfo de la liste des visitInfo
+                if visit_info_uuid in VisitorTrackerConsumer.list_visit_info :
+                    VisitorTrackerConsumer.list_visit_info.remove(visit_info_uuid)
+                # supprimer le cv_download de la liste des cv_download
+                if visit_info_uuid in VisitorTrackerConsumer.list_cv_download :
+                    VisitorTrackerConsumer.list_cv_download.remove(visit_info_uuid)
+                # supprimer le portfolio_detail_view de la liste des portfolio_detail_view
+                if visit_info_uuid in VisitorTrackerConsumer.list_portfolio_detail_view :
+                    VisitorTrackerConsumer.list_portfolio_detail_view.remove(visit_info_uuid)
                 print(self.alert_disconnected_visitor)
             else:
                 print("Visiteur non identifié déconnecté.")
@@ -127,8 +139,8 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 self.channel_name
             )
             # vider le cache
-            if cache.get(f"visitor_data_{visitor_uuid}"):
-                cache.delete(f"visitor_data_{visitor_uuid}")
+            if cache.get(f"visit_info_data_{visitor_uuid}"):
+                cache.delete(f"visit_info_data_{visitor_uuid}")
             if cache.get(f"cv_download_{visitor_uuid}"):
                 cache.delete(f"cv_download_{visitor_uuid}")
             if cache.get(f"portfolio_detail_view_{visitor_uuid}"):
@@ -162,6 +174,9 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 self.visit_start_datetime = timezone.now()
                 # # save visit info
                 visit_info_uuid = uuid.uuid4()
+                while await self.check_visit_info_exists(visit_info_uuid):
+                    visit_info_uuid = uuid.uuid4()
+                    print('--inside while loop (check_visit_info_exists)--')
                 self.scope['visit_info_uuid'] = visit_info_uuid
                 await self.save_visit_info(
                     id_visit_info = visit_info_uuid,
@@ -170,10 +185,15 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                     location_approx = data["location_approx"],
                     visit_start_datetime = self.visit_start_datetime,
                 )
-                # update visitor state
+                # update visitor state in database
                 await self.update_visitor_state(visitor_uuid, is_new_visitor = False)
+                # mis à jour de la liste des visitInfo
+                VisitorTrackerConsumer.list_visit_info.append(visit_info_uuid)
             else:
                 visitor_uuid = uuid.uuid4()
+                while await self.check_visitor_exists(visitor_uuid):
+                    visitor_uuid = uuid.uuid4()
+                    print('--inside while loop (check_visitor_exists)--')
                 self.visitor_uuid = visitor_uuid
                 self.alert_new_visitor = f"Un nouveau visiteur {visitor_uuid} consulte votre portfolio."
                 VisitorTrackerConsumer.list_new_visitors.append(visitor_uuid)
@@ -184,6 +204,9 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 self.visit_start_datetime = timezone.now()
                 # save visit info
                 visit_info_uuid = uuid.uuid4()
+                while await self.check_visit_info_exists(visit_info_uuid):
+                    visit_info_uuid = uuid.uuid4()
+                    print('--inside while loop (check_visit_info_exists)--')
                 self.scope['visit_info_uuid'] = visit_info_uuid
                 await self.save_visit_info(
                     id_visit_info = visit_info_uuid,
@@ -192,6 +215,8 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                     location_approx = data["location_approx"],
                     visit_start_datetime = self.visit_start_datetime,
                 )
+                # mis à jour de la liste des visitInfo
+                VisitorTrackerConsumer.list_visit_info.append(visit_info_uuid)
 
             # Diffuser le message au room du portfolio
             await self.channel_layer.group_send(
@@ -221,10 +246,9 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 message_data
             )
             # mis en cache du message : visitor_data
-            mes = cache.get(f"visitor_data_{visitor_uuid}", []) # get the cache, pour enregister une cache en liste
+            mes = cache.get(f"visit_info_data_{visit_info_uuid}", []) # get the cache, pour enregister une cache en liste
             mes.append(message_data)
-            cache.set(f"visitor_data_{visitor_uuid}", mes, timeout=3600) # 1h
-            print(f"\n---------- GET cache_data receive : --------: {mes}")
+            cache.set(f"visit_info_data_{visit_info_uuid}", mes, timeout=3600) # 1h
         
         # **************** DATA TYPE : CV-DOWNLOAD ****************
         elif data.get("type") == "cv-download" :
@@ -246,6 +270,8 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 f"user_{WOOSEEANDY_TOKEN}",
                 message_data
             )
+            # mis à jour de la liste des cv_download
+            VisitorTrackerConsumer.list_cv_download.append(id_cv_download)
             # mis en cache du message : cv_download
             mes = cache.get(f"cv_download_{data["uuid"]}", [])
             mes.append(message_data)
@@ -278,6 +304,8 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 f"user_{WOOSEEANDY_TOKEN}",
                 message_data
             )
+            # mis à jour de la liste des portfolio_detail_view
+            VisitorTrackerConsumer.list_portfolio_detail_view.append(id_portfolio_detail_view)
             # mis en cache du message : portfolio_detail_view
             mes = cache.get(f"portfolio_detail_view_{data["uuid"]}", [])
             mes.append(message_data)
@@ -292,28 +320,28 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
         # **** update server cache ****
         if data.get("type") == "update_server_cache":
             if data.get("cache_type") == "data_api":
-                visitor_uuid = await self.get_visitor_id_by_id_visit_info(data.get("uuid"))
-                cache_data = cache.get(f"visitor_data_{visitor_uuid}", [])
+                visit_info_uuid = data.get("uuid")
+                cache_data = cache.get(f"visit_info_data_{visit_info_uuid}", [])
                 if cache_data :
                     for c in cache_data :
                         c["is_read"] = True
-                        cache.set(f"visitor_data_{visitor_uuid}", cache_data, timeout=3600)
+                        cache.set(f"visit_info_data_{visit_info_uuid}", cache_data, timeout=3600)
             
             elif data.get("cache_type") == "cv_download_alert":
-                visitor_uuid = await self.get_visitor_id_by_id_cv_download(data.get("uuid"))
-                cache_data = cache.get(f"cv_download_{visitor_uuid}", [])
+                cv_download_uuid = data.get("uuid")
+                cache_data = cache.get(f"cv_download_{cv_download_uuid}", [])
                 if cache_data :
                     for c in cache_data :
                         c["is_read"] = True
-                        cache.set(f"cv_download_{visitor_uuid}", cache_data, timeout=3600)
+                        cache.set(f"cv_download_{cv_download_uuid}", cache_data, timeout=3600)
 
             elif data.get("cache_type") == "portfolio_details_view_alert":
-                visitor_uuid = await self.get_visitor_id_by_id_portfolio_detail_view(data.get("uuid"))
-                cache_data = cache.get(f"portfolio_detail_view_{visitor_uuid}", [])
+                portfolio_detail_view_uuid = data.get("uuid")
+                cache_data = cache.get(f"portfolio_detail_view_{portfolio_detail_view_uuid}", [])
                 if cache_data :
                     for c in cache_data :
                         c["is_read"] = True
-                        cache.set(f"portfolio_detail_view_{visitor_uuid}", cache_data, timeout=3600)
+                        cache.set(f"portfolio_detail_view_{portfolio_detail_view_uuid}", cache_data, timeout=3600)
     
     
     # ________________RECEIVE___________________
@@ -431,6 +459,10 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def check_visitor_exists(self, visitor_uuid):
         return Visitor.objects.filter(id_visitor = visitor_uuid).exists()
+    
+    @database_sync_to_async
+    def check_visit_info_exists(self, visit_info_uuid):
+        return VisitInfo.objects.filter(id_visit_info = visit_info_uuid).exists()
 
     @database_sync_to_async
     def check_cv_donwload_exists(self, id_cv_download):
