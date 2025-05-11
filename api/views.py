@@ -52,3 +52,34 @@ class MarkPortfolioDetailViewAsRead(APIView):
             return Response({"message": "PortfolioDetailView marked as read."}, status=status.HTTP_200_OK)
         except PortfolioDetailView.DoesNotExist:
             return Response({"error": "PortfolioDetailView not found."}, status=status.HTTP_404_NOT_FOUND)
+
+# ------- DELETE API -------
+# VisitInfo
+class DeleteVisitInfo(APIView):
+    def delete(self, request, pk, *args, **kwargs):
+        try:
+            visit_info = VisitInfo.objects.get(pk=pk)
+            visit_info.delete()
+            return Response({"message": "VisitInfo deleted."}, status=status.HTTP_200_OK)
+        except VisitInfo.DoesNotExist:
+            return Response({"error": "VisitInfo not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+# CVDownload
+class DeleteCVDownload(APIView):
+    def delete(self, request, pk, *args, **kwargs):
+        try:
+            cv_download = CVDownload.objects.get(pk=pk)
+            cv_download.delete()
+            return Response({"message": "CVDownload deleted."}, status=status.HTTP_200_OK)
+        except CVDownload.DoesNotExist:
+            return Response({"error": "CVDownload not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+# PortfolioDetailView
+class DeletePortfolioDetailView(APIView):
+    def delete(self, request, pk, *args, **kwargs):
+        try:
+            portfolio_detail_view = PortfolioDetailView.objects.get(pk=pk)
+            portfolio_detail_view.delete()
+            return Response({"message": "PortfolioDetailView deleted."}, status=status.HTTP_200_OK)
+        except PortfolioDetailView.DoesNotExist:
+            return Response({"error": "PortfolioDetailView not found."}, status=status.HTTP_404_NOT_FOUND)

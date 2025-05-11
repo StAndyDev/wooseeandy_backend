@@ -434,20 +434,6 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
         }))
     
     # ======================== DATABASE ==========================
-    @database_sync_to_async
-    def get_visitor_id_by_id_visit_info(self, visit_info_uuid):
-        visit_info = VisitInfo.objects.filter(id_visit_info=visit_info_uuid).select_related('visitor').last()
-        return visit_info.visitor_id if visit_info else None # *********IMPORTANT : Le visitor_id ********* c'est pour accéder à Visitor.id_visitor (django ne se base pas sur le nom du champ)
-    
-    @database_sync_to_async
-    def get_visitor_id_by_id_cv_download(self, cv_download_uuid):
-        cv_download = CVDownload.objects.filter(id_cv_download=cv_download_uuid).select_related('visitor').last()
-        return cv_download.visitor_id if cv_download else None
-    
-    @database_sync_to_async
-    def get_visitor_id_by_id_portfolio_detail_view(self, portfolio_detail_view_uuid):
-        portfolio_detail_view = PortfolioDetailView.objects.filter(id_portfolio_detail_view=portfolio_detail_view_uuid).select_related('visitor').last()
-        return portfolio_detail_view.visitor_id if portfolio_detail_view else None
 
     @database_sync_to_async
     def update_visitor_state(self, visitor_uuid, is_new_visitor):
