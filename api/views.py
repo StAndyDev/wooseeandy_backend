@@ -83,3 +83,30 @@ class DeletePortfolioDetailView(APIView):
             return Response({"message": "PortfolioDetailView deleted."}, status=status.HTTP_200_OK)
         except PortfolioDetailView.DoesNotExist:
             return Response({"error": "PortfolioDetailView not found."}, status=status.HTTP_404_NOT_FOUND)
+
+# -------- Count VISITINFO, CVDOWNLOAD, PORTFOLIODETAILVIEW -----------
+class CountNotification(APIView):
+    def get(self, request, *args, **kwargs):
+        is_read_param = request.GET.get('is_read')
+        # Par défaut, pas de filtrage (on compte tout)
+        filter_kwargs = {}
+
+        if is_read_param is not None:
+            if is_read_param.lower() == 'true':
+                filter_kwargs['is_read'] = True
+            elif is_read_param.lower() == 'false':
+                filter_kwargs['is_read'] = False
+            else:
+                return Response({'error': "Paramètre 'is_read' invalide. Utilisez 'true' ou 'false'."},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+        # Application du filtre si défini
+        visitinfo_count = VisitInfo.objects.filter(**filter_kwargs).count()
+        cvdownload_count = CVDownload.objects.filter(**filter_kwargs).count()
+        portfoliodetailview_count = PortfolioDetailView.objects.filter(**filter_kwargs).count()
+
+        return Response({
+            "visitinfo_count": visitinfo_count,
+            "cvdownload_count": cvdownload_count,
+            "portfoliodetailview_count": portfoliodetailview_count
+        }, status=status.HTTP_200_OK)
