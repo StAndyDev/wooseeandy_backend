@@ -1,10 +1,16 @@
-from visitor_tracker.models import VisitInfo, CVDownload, PortfolioDetailView
+from visitor_tracker.models import VisitInfo, CVDownload, PortfolioDetailView, Visitor
 from .serializers import VisitInfoSerializer, CVDownloadSerializer, PortfolioDetailsViewSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 # from drf_yasg.utils from swagger_auto_schema
 from rest_framework.generics import ListAPIView # pour la liste paginée
+
+from django.utils.timezone import now
+from datetime import timedelta
+from dateutil.relativedelta import relativedelta
+from django.db.models import Count
+from django.db.models.functions import TruncWeek, TruncMonth
 
 # ------ LIST API VIEW -------
 class VisitorInfoList(ListAPIView):
@@ -110,3 +116,191 @@ class CountNotification(APIView):
             "cvdownload_count": cvdownload_count,
             "portfoliodetailview_count": portfoliodetailview_count
         }, status=status.HTTP_200_OK)
+
+# --------------- COUNTER ---------------
+class CountVisitor(APIView):
+    def get(self, request, *args, **kwargs):
+        visitor_count = Visitor.objects.count()
+        return Response({
+            "visitor_count" : visitor_count
+        }, status=status.HTTP_200_OK)
+
+class CountCvDownload(APIView):
+    def get(self, request, *args, **kwargs):
+        cv_download_count = CVDownload.objects.count()
+        return Response({
+            "cv_download_count" : cv_download_count
+        }, status = status.HTTP_200_OK)
+
+class CountPortfolioDetailsView(APIView):
+    def get(self, request, *args, **kwargs):
+        portfolio_details_view_count = PortfolioDetailView.objects.count()
+        return Response({
+            "portfolio_details_view_count" : portfolio_details_view_count
+        }, status = status.HTTP_200_OK)
+    
+# -------------- Nbr Monthly --------------
+
+class MonthlyVisitInfoStatsView(APIView):
+    def get(self, request):
+        today = now().date()
+
+        # Période actuelle (mois en cours)
+        start_current_month = today.replace(day=1)
+        end_current_month = (start_current_month + relativedelta(months=1)) - timedelta(seconds=1)
+
+        # Période précédente (mois dernier)
+        start_last_month = start_current_month - relativedelta(months=1)
+        end_last_month = start_current_month - timedelta(seconds=1)
+
+        # Comptage
+        visits_current = VisitInfo.objects.filter(
+            visit_start_datetime__date__gte=start_current_month,
+            visit_start_datetime__date__lte=end_current_month
+        ).count()
+
+        visits_last = VisitInfo.objects.filter(
+            visit_start_datetime__date__gte=start_last_month,
+            visit_start_datetime__date__lte=end_last_month
+        ).count()
+
+        # Calcul de la variation | j'aimerai calculer la variation côté client
+        # if visits_last > 0:
+        #     change = ((visits_current - visits_last) / visits_last) * 100
+        # else:
+        #     change = 0.0 if visits_current == 0 else 100.0  # Si aucun visite le mois dernier
+        # arrondissement
+        # "change_percentage": round(change, 2)
+
+        return Response({
+            "current_month": visits_current,
+            "last_month": visits_last,
+        })
+
+
+class MonthlyPortfolioDetailViewStatsView(APIView):
+    def get(self, request):
+        today = now().date()
+
+        # Définir les bornes du mois actuel
+        start_current_month = today.replace(day=1)
+        end_current_month = (start_current_month + relativedelta(months=1)) - timedelta(seconds=1)
+
+        # Définir les bornes du mois précédent
+        start_last_month = start_current_month - relativedelta(months=1)
+        end_last_month = start_current_month - timedelta(seconds=1)
+
+        # Compter les vues
+        current_month_views = PortfolioDetailView.objects.filter(
+            view_datetime__date__gte=start_current_month,
+            view_datetime__date__lte=end_current_month
+        ).count()
+
+        last_month_views = PortfolioDetailView.objects.filter(
+            view_datetime__date__gte=start_last_month,
+            view_datetime__date__lte=end_last_month
+        ).count()
+
+        return Response({
+            "current_month": current_month_views,
+            "last_month": last_month_views,
+        })
+
+class MonthlyCVDownloadStatsView(APIView):
+    def get(self, request):
+        today = now().date()
+
+        # Mois actuel
+        start_current_month = today.replace(day=1)
+        end_current_month = (start_current_month + relativedelta(months=1)) - timedelta(seconds=1)
+
+        # Mois précédent
+        start_last_month = start_current_month - relativedelta(months=1)
+        end_last_month = start_current_month - timedelta(seconds=1)
+
+        # Nombre de téléchargements
+        downloads_current = CVDownload.objects.filter(
+            download_datetime__date__gte=start_current_month,
+            download_datetime__date__lte=end_current_month
+        ).count()
+
+        downloads_last = CVDownload.objects.filter(
+            download_datetime__date__gte=start_last_month,
+            download_datetime__date__lte=end_last_month
+        ).count()
+
+        return Response({
+            "current_month": downloads_current,
+            "last_month": downloads_last,
+        })
+    
+# -------------- Nbr 7 last Month/Week --------------
+class SevenLastVisitInfoStatsView(APIView):
+    def get(self, request, *args, **kwargs):
+        mode = request.GET.get('mode', 'month')
+        today = now()
+
+        if mode == 'week':
+            truncate_func = TruncWeek
+            periods = [today - timedelta(weeks=i) for i in range(6, -1, -1)]
+        else:
+            truncate_func = TruncMonth
+            periods = [today.replace(day=1) - timedelta(days=30 * i) for i in range(6, -1, -1)]
+
+        queryset = VisitInfo.objects.all()
+        annotated = queryset.annotate(period=truncate_func('visit_start_datetime')).values('period') \
+            .annotate(count=Count('id_visit_info')).order_by('period')
+        counts = {str(entry['period'].date()): entry['count'] for entry in annotated}
+        result = [counts.get(str(p.date()), 0) for p in periods]
+
+        return Response({
+            'labels': [p.strftime('%Y-%m-%d') for p in periods],
+            'visit_info': result
+        }, status=status.HTTP_200_OK)
+    
+class SevenLastCVDownloadStatsView(APIView):
+    def get(self, request, *args, **kwargs):
+        mode = request.GET.get('mode', 'month')
+        today = now()
+
+        if mode == 'week':
+            truncate_func = TruncWeek
+            periods = [today - timedelta(weeks=i) for i in range(6, -1, -1)]
+        else:
+            truncate_func = TruncMonth
+            periods = [today.replace(day=1) - timedelta(days=30 * i) for i in range(6, -1, -1)]
+
+        queryset = CVDownload.objects.all()
+        annotated = queryset.annotate(period=truncate_func('download_datetime')).values('period') \
+            .annotate(count=Count('id_cv_download')).order_by('period')
+        counts = {str(entry['period'].date()): entry['count'] for entry in annotated}
+        result = [counts.get(str(p.date()), 0) for p in periods]
+
+        return Response({
+            'labels': [p.strftime('%Y-%m-%d') for p in periods],
+            'cv_download': result
+        }, status=status.HTTP_200_OK)
+    
+class SevenLastPortfolioDetailViewStatsView(APIView):
+    def get(self, request, *args, **kwargs):
+        mode = request.GET.get('mode', 'month')
+        today = now()
+
+        if mode == 'week':
+            truncate_func = TruncWeek
+            periods = [today - timedelta(weeks=i) for i in range(6, -1, -1)]
+        else:
+            truncate_func = TruncMonth
+            periods = [today.replace(day=1) - timedelta(days=30 * i) for i in range(6, -1, -1)]
+
+        queryset = PortfolioDetailView.objects.all()
+        annotated = queryset.annotate(period=truncate_func('view_datetime')).values('period') \
+            .annotate(count=Count('id_portfolio_detail_view')).order_by('period')
+        counts = {str(entry['period'].date()): entry['count'] for entry in annotated}
+        result = [counts.get(str(p.date()), 0) for p in periods]
+
+        return Response({
+            'labels': [p.strftime('%Y-%m-%d') for p in periods],
+            'portfolio_detail_view': result
+        }, status=status.HTTP_200_OK)
+    

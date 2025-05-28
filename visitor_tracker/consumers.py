@@ -127,7 +127,7 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 f"user_{WOOSEEANDY_TOKEN}",
                 {
                     'type': 'disconnect_alert_sender', # appel la méthode disconnect_alert_sender
-                    'is_new_visitor': True if visitor_uuid in VisitorTrackerConsumer.list_new_visitors else False,
+                    'is_new_visitor': True if str(visitor_uuid) in VisitorTrackerConsumer.list_new_visitors else False,
                     'visit_info_uuid': str(visit_info_uuid),
                     'end_datetime': self.visit_end_datetime.isoformat() if self.visit_end_datetime else None,
                     'visit_duration': timedelta_to_iso8601(self.visit_end_datetime - self.visit_start_datetime) if self.visit_start_datetime and self.visit_end_datetime else None,
@@ -196,7 +196,7 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                     print('--inside while loop (check_visitor_exists)--')
                 self.visitor_uuid = visitor_uuid
                 self.alert_new_visitor = f"Un nouveau visiteur {visitor_uuid} consulte votre portfolio."
-                VisitorTrackerConsumer.list_new_visitors.append(visitor_uuid)
+                VisitorTrackerConsumer.list_new_visitors.append(str(visitor_uuid))
                 print(self.alert_new_visitor)
                 # save visitor
                 await self.save_visitor(id_visitor = visitor_uuid ,navigator_info = data["navigator_info"], os = data["os"], device_type = data["device_type"])
@@ -391,13 +391,13 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
             'is_read': is_read,
         }))
     async def disconnect_alert_sender(self, event):
-        is_new_visitor = event['is_new_visitor'] # bool, permet de savoir si le visiteur déconnecté est un nouveau ou pas
+        new_visitor = event['is_new_visitor'] # bool, permet de savoir si le visiteur déconnecté est un nouveau ou pas
         end_datetime = event['end_datetime']
         id_visit_info = event['visit_info_uuid']
         visit_duration = event['visit_duration']
         await self.send(text_data=json.dumps({
             'alert_type': 'disconnected_alert',  # ceci permet de distinguer les types d'alerte en wooseeandy app
-            'is_new_visitor': is_new_visitor,
+            'is_new_visitor': new_visitor,
             'visit_info_uuid': id_visit_info,
             'visit_end_datetime': end_datetime,
             'visit_duration': visit_duration,

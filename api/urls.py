@@ -1,5 +1,25 @@
 from django.urls import path
-from .views import VisitorInfoList, CVDownloadList, PortfolioDetailsViewList, MarkVisitInfoAsRead, MarkCVDownloadAsRead, MarkPortfolioDetailViewAsRead, DeleteVisitInfo, DeleteCVDownload, DeletePortfolioDetailView, CountNotification
+from .views import (
+    VisitorInfoList,
+    CVDownloadList,
+    PortfolioDetailsViewList,
+    MarkVisitInfoAsRead,
+    MarkCVDownloadAsRead,
+    MarkPortfolioDetailViewAsRead,
+    DeleteVisitInfo,
+    DeleteCVDownload,
+    DeletePortfolioDetailView,
+    CountNotification,
+    CountVisitor,
+    CountCvDownload,
+    CountPortfolioDetailsView,
+    MonthlyVisitInfoStatsView,
+    MonthlyPortfolioDetailViewStatsView,
+    MonthlyCVDownloadStatsView,
+    SevenLastVisitInfoStatsView,
+    SevenLastCVDownloadStatsView,
+    SevenLastPortfolioDetailViewStatsView,
+)
 
 urlpatterns = [
     path('visitors-infos-list/', VisitorInfoList.as_view()),
@@ -12,4 +32,13 @@ urlpatterns = [
     path('delete-cv-download/<uuid:pk>/', DeleteCVDownload.as_view()),
     path('delete-portfolio-detail-view/<uuid:pk>/', DeletePortfolioDetailView.as_view()),
     path('notifications/count/', CountNotification.as_view()),
+    path('visitor/count/', CountVisitor.as_view()),
+    path('cv-download/count/', CountCvDownload.as_view()),
+    path('portfolio-details-view/count/', CountPortfolioDetailsView.as_view()),
+    path('visit-info-stats/monthly/', MonthlyVisitInfoStatsView.as_view()),
+    path('portfolio-detail-stats/monthly/', MonthlyPortfolioDetailViewStatsView.as_view()),
+    path('cv-download-stats/monthly/', MonthlyCVDownloadStatsView.as_view()),
+    path('seven-last-visit-info/stats/', SevenLastVisitInfoStatsView.as_view()),
+    path('seven-last-cv-download/stats/', SevenLastCVDownloadStatsView.as_view()),
+    path('seven-last-portfolio-detail/stats/', SevenLastPortfolioDetailViewStatsView.as_view()),
 ]
