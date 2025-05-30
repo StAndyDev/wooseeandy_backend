@@ -235,26 +235,51 @@ class MonthlyCVDownloadStatsView(APIView):
         })
     
 # -------------- Nbr 7 last Month/Week --------------
+
+MONTHS_FR = {
+    1: "Janvier", 2: "Février", 3: "Mars", 4: "Avril",
+    5: "Mai", 6: "Juin", 7: "Juillet", 8: "Août",
+    9: "Septembre", 10: "Octobre", 11: "Novembre", 12: "Décembre"
+}
+
 class SevenLastVisitInfoStatsView(APIView):
     def get(self, request, *args, **kwargs):
         mode = request.GET.get('mode', 'month')
         today = now()
+        queryset = VisitInfo.objects.all()
 
         if mode == 'week':
             truncate_func = TruncWeek
-            periods = [today - timedelta(weeks=i) for i in range(6, -1, -1)]
+            start_of_week = today - timedelta(days=today.weekday())
+            periods = [start_of_week - timedelta(weeks=i) for i in range(6, -1, -1)]
+
+            annotated = queryset.annotate(
+                period=truncate_func('visit_start_datetime')
+            ).values('period').annotate(count=Count('id_visit_info'))
+
+            counts = {entry['period'].date(): entry['count'] for entry in annotated}
+
+            labels = [f"S{i+1}" for i in range(7)]
+            result = [counts.get(p.date(), 0) for p in periods]
+
         else:
             truncate_func = TruncMonth
-            periods = [today.replace(day=1) - timedelta(days=30 * i) for i in range(6, -1, -1)]
+            start_of_month = today.replace(day=1)
+            periods = [start_of_month - relativedelta(months=i) for i in range(6, -1, -1)]
 
-        queryset = VisitInfo.objects.all()
-        annotated = queryset.annotate(period=truncate_func('visit_start_datetime')).values('period') \
-            .annotate(count=Count('id_visit_info')).order_by('period')
-        counts = {str(entry['period'].date()): entry['count'] for entry in annotated}
-        result = [counts.get(str(p.date()), 0) for p in periods]
+            annotated = queryset.annotate(
+                period=truncate_func('visit_start_datetime')
+            ).values('period').annotate(count=Count('id_visit_info'))
+
+            counts = {entry['period'].date(): entry['count'] for entry in annotated}
+
+            labels = [
+                f"{MONTHS_FR[p.month]} {p.year}" for p in periods
+            ]
+            result = [counts.get(p.date(), 0) for p in periods]
 
         return Response({
-            'labels': [p.strftime('%Y-%m-%d') for p in periods],
+            'labels': labels,
             'visit_info': result
         }, status=status.HTTP_200_OK)
     
@@ -262,45 +287,78 @@ class SevenLastCVDownloadStatsView(APIView):
     def get(self, request, *args, **kwargs):
         mode = request.GET.get('mode', 'month')
         today = now()
+        queryset = CVDownload.objects.all()
 
         if mode == 'week':
             truncate_func = TruncWeek
-            periods = [today - timedelta(weeks=i) for i in range(6, -1, -1)]
+            start_of_week = today - timedelta(days=today.weekday())
+            periods = [start_of_week - timedelta(weeks=i) for i in range(6, -1, -1)]
+
+            annotated = queryset.annotate(
+                period=truncate_func('download_datetime')
+            ).values('period').annotate(count=Count('id_cv_download'))
+
+            counts = {entry['period'].date(): entry['count'] for entry in annotated}
+
+            labels = [f"S{i+1}" for i in range(7)]
+            result = [counts.get(p.date(), 0) for p in periods]
+
         else:
             truncate_func = TruncMonth
-            periods = [today.replace(day=1) - timedelta(days=30 * i) for i in range(6, -1, -1)]
+            start_of_month = today.replace(day=1)
+            periods = [start_of_month - relativedelta(months=i) for i in range(6, -1, -1)]
 
-        queryset = CVDownload.objects.all()
-        annotated = queryset.annotate(period=truncate_func('download_datetime')).values('period') \
-            .annotate(count=Count('id_cv_download')).order_by('period')
-        counts = {str(entry['period'].date()): entry['count'] for entry in annotated}
-        result = [counts.get(str(p.date()), 0) for p in periods]
+            annotated = queryset.annotate(
+                period=truncate_func('download_datetime')
+            ).values('period').annotate(count=Count('id_cv_download'))
+
+            counts = {entry['period'].date(): entry['count'] for entry in annotated}
+
+            labels = [f"{MONTHS_FR[p.month]} {p.year}" for p in periods]
+            result = [counts.get(p.date(), 0) for p in periods]
 
         return Response({
-            'labels': [p.strftime('%Y-%m-%d') for p in periods],
+            'labels': labels,
             'cv_download': result
         }, status=status.HTTP_200_OK)
     
+
 class SevenLastPortfolioDetailViewStatsView(APIView):
     def get(self, request, *args, **kwargs):
         mode = request.GET.get('mode', 'month')
         today = now()
+        queryset = PortfolioDetailView.objects.all()
 
         if mode == 'week':
             truncate_func = TruncWeek
-            periods = [today - timedelta(weeks=i) for i in range(6, -1, -1)]
+            start_of_week = today - timedelta(days=today.weekday())
+            periods = [start_of_week - timedelta(weeks=i) for i in range(6, -1, -1)]
+
+            annotated = queryset.annotate(
+                period=truncate_func('view_datetime')
+            ).values('period').annotate(count=Count('id_portfolio_detail_view'))
+
+            counts = {entry['period'].date(): entry['count'] for entry in annotated}
+
+            labels = [f"S{i+1}" for i in range(7)]
+            result = [counts.get(p.date(), 0) for p in periods]
+
         else:
             truncate_func = TruncMonth
-            periods = [today.replace(day=1) - timedelta(days=30 * i) for i in range(6, -1, -1)]
+            start_of_month = today.replace(day=1)
+            periods = [start_of_month - relativedelta(months=i) for i in range(6, -1, -1)]
 
-        queryset = PortfolioDetailView.objects.all()
-        annotated = queryset.annotate(period=truncate_func('view_datetime')).values('period') \
-            .annotate(count=Count('id_portfolio_detail_view')).order_by('period')
-        counts = {str(entry['period'].date()): entry['count'] for entry in annotated}
-        result = [counts.get(str(p.date()), 0) for p in periods]
+            annotated = queryset.annotate(
+                period=truncate_func('view_datetime')
+            ).values('period').annotate(count=Count('id_portfolio_detail_view'))
+
+            counts = {entry['period'].date(): entry['count'] for entry in annotated}
+
+            labels = [f"{MONTHS_FR[p.month]} {p.year}" for p in periods]
+            result = [counts.get(p.date(), 0) for p in periods]
 
         return Response({
-            'labels': [p.strftime('%Y-%m-%d') for p in periods],
+            'labels': labels,
             'portfolio_detail_view': result
         }, status=status.HTTP_200_OK)
     
