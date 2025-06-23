@@ -11,6 +11,8 @@ from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 from django.db.models import Count
 from django.db.models.functions import TruncWeek, TruncMonth
+from django.views import View
+from django.http import JsonResponse
 
 # ------ LIST API VIEW -------
 class VisitorInfoList(ListAPIView):
@@ -237,9 +239,9 @@ class MonthlyCVDownloadStatsView(APIView):
 # -------------- Nbr 7 last Month/Week --------------
 
 MONTHS_FR = {
-    1: "Janvier", 2: "Février", 3: "Mars", 4: "Avril",
-    5: "Mai", 6: "Juin", 7: "Juillet", 8: "Août",
-    9: "Septembre", 10: "Octobre", 11: "Novembre", 12: "Décembre"
+    1: "Jan", 2: "Fév", 3: "Mars", 4: "Avr",
+    5: "Mai", 6: "Juin", 7: "Juil", 8: "Août",
+    9: "Sep", 10: "Oct", 11: "Nov", 12: "Déc"
 }
 
 class SevenLastVisitInfoStatsView(APIView):
@@ -362,3 +364,35 @@ class SevenLastPortfolioDetailViewStatsView(APIView):
             'portfolio_detail_view': result
         }, status=status.HTTP_200_OK)
     
+# browser counter
+class BrowserStatsAPIView(APIView):
+    def get(self, request, *args, **kwargs):
+        visitors = Visitor.objects.exclude(navigator_info__isnull=True).exclude(navigator_info__exact='')
+
+        browser_counts = {
+            'chrome': 0,
+            'firefox': 0,
+            'edge': 0,
+            'safari': 0,
+            'autres': 0
+        }
+
+        for visitor in visitors:
+            info = visitor.navigator_info.lower()
+
+            if 'chrome' in info and 'edge' not in info:  # pour éviter Edge basé sur Chromium
+                browser_counts['chrome'] += 1
+            elif 'firefox' in info:
+                browser_counts['firefox'] += 1
+            elif 'edge' in info:
+                browser_counts['edge'] += 1
+            elif 'safari' in info and 'chrome' not in info:  # pour éviter Safari + Chrome
+                browser_counts['safari'] += 1
+            else:
+                browser_counts['autres'] += 1
+
+        return Response(browser_counts)
+    
+class PingView(View):
+    def get(self, request):
+        return JsonResponse({'status': 'ok'})

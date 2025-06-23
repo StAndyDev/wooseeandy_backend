@@ -19,6 +19,8 @@ from .views import (
     SevenLastVisitInfoStatsView,
     SevenLastCVDownloadStatsView,
     SevenLastPortfolioDetailViewStatsView,
+    BrowserStatsAPIView,
+    PingView,
 )
 
 urlpatterns = [
@@ -41,4 +43,6 @@ urlpatterns = [
     path('seven-last-visit-info/stats/', SevenLastVisitInfoStatsView.as_view()),
     path('seven-last-cv-download/stats/', SevenLastCVDownloadStatsView.as_view()),
     path('seven-last-portfolio-detail/stats/', SevenLastPortfolioDetailViewStatsView.as_view()),
+    path('browser-stats/', BrowserStatsAPIView.as_view()),
+    path('ping/', PingView.as_view()), # ping
 ]
