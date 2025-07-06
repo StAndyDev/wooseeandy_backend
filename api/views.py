@@ -1,4 +1,4 @@
-from visitor_tracker.models import VisitInfo, CVDownload, PortfolioDetailView, Visitor
+from visitor_tracker.models import VisitInfo, CVDownload, PortfolioDetailView, Visitor, PushToken
 from .serializers import VisitInfoSerializer, CVDownloadSerializer, PortfolioDetailsViewSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -13,6 +13,9 @@ from django.db.models import Count
 from django.db.models.functions import TruncWeek, TruncMonth
 from django.views import View
 from django.http import JsonResponse
+import json
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 
 # ------ LIST API VIEW -------
 class VisitorInfoList(ListAPIView):
@@ -392,7 +395,30 @@ class BrowserStatsAPIView(APIView):
                 browser_counts['autres'] += 1
 
         return Response(browser_counts)
-    
+# Ping
 class PingView(View):
     def get(self, request):
         return JsonResponse({'status': 'ok'})
+    
+@method_decorator(csrf_exempt, name='dispatch')
+class SaveWooseeandyUserTokenView(View):
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            user_id = data.get('userId')
+            expo_push_token = data.get('expoPushToken')
+
+            if not user_id or not expo_push_token:
+                return JsonResponse({'error': 'Données manquantes'}, status=400)
+
+            PushToken.objects.update_or_create(
+                user_id=user_id,
+                defaults={'expo_push_token': expo_push_token}
+            )
+
+            return JsonResponse({'message': 'Token enregistré avec succès'})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+
+    def get(self, request):
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)

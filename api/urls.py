@@ -21,6 +21,7 @@ from .views import (
     SevenLastPortfolioDetailViewStatsView,
     BrowserStatsAPIView,
     PingView,
+    SaveWooseeandyUserTokenView
 )
 
 urlpatterns = [
@@ -45,4 +46,5 @@ urlpatterns = [
     path('seven-last-portfolio-detail/stats/', SevenLastPortfolioDetailViewStatsView.as_view()),
     path('browser-stats/', BrowserStatsAPIView.as_view()),
     path('ping/', PingView.as_view()), # ping
+    path('save-wooseeandy-user-token', SaveWooseeandyUserTokenView.as_view()),
 ]

@@ -1,11 +1,12 @@
 import json, uuid
 from channels.generic.websocket import AsyncWebsocketConsumer
-from .models import Visitor, VisitInfo, CVDownload, PortfolioDetailView
+from .models import Visitor, VisitInfo, CVDownload, PortfolioDetailView, PushToken
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from visitor_tracker.utils.validators import is_valid_uuid
 from visitor_tracker.utils.duration_utils import timedelta_to_iso8601
 from django.core.cache import cache
+from .expo_push import send_push_notification
 
 PORTFOLIO_TOKEN = "d4f8a1b3c6e9f2g7h0j5k8l2m9n3p4q"
 WOOSEEANDY_TOKEN = "a3b7e8f9c2d4g5h6j0k1l2m3n9p8q7r"
@@ -153,14 +154,29 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 self.channel_name
             )
             print("wooseeandy app disconnected")
+    # send data and token to 
+    @database_sync_to_async
+    def send_notification_data(self):
+        print("\n -------dans send notification data")
+        # test notif push
+        token = PushToken.objects.all().only('expo_push_token')
+        for i in token:
+            print("voic le token : ", i.expo_push_token)
+            send_push_notification(token=i.expo_push_token, title="test", body="sitraka andy", data= {"age":12, "nom": "sitreeekeee"})
+            print("Notification sent to token: ", i.expo_push_token)
     
     # _______________RECEIVE FROM PORTFOLIO________________
     async def receive_from_portfolio(self, text_data):
+        print("\n-- dans RECEIVE FROM PORTFOLIO")
         text_data_json = json.loads(text_data)
         data = text_data_json['data']
         # ********************* DATA TYPE : VISITOR-INFOS ************************
         # verification de type de message | si le visiteur est récurrent ou pas
         if data.get("type") == "visitor-infos" :
+            print("\n-- dans RECEIVE FROM PORTFOLIO visitor-infos")
+            # test eeeeeeeeeee
+            await self.send_notification_data()
+            
             if data.get("uuidExists") and data["uuidExists"] != "undefined" and is_valid_uuid(data["uuidExists"]) == True:
                 visitor_uuid = data["uuidExists"]
                 id_exists = await self.check_visitor_exists(visitor_uuid)

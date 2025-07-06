@@ -51,3 +51,12 @@ class PortfolioDetailView(models.Model):
 
     def __str__(self):
         return f"Portfolio detail viewed by {self.visitor}"
+
+# WOOSEEANDY USER/TOKEN
+class PushToken(models.Model):
+    user_id = models.CharField(max_length=100)  # ou models.ForeignKey(User) si t'as un système de login
+    expo_push_token = models.CharField(max_length=255)
+    date_added = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.user_id} - {self.expo_push_token}'
