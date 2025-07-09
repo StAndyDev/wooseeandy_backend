@@ -154,15 +154,16 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                 self.channel_name
             )
             print("wooseeandy app disconnected")
-    # send data and token to 
+    
+    # ------ send data and token to expo ------
     @database_sync_to_async
-    def send_notification_data(self):
+    def send_notification_data(self, titre, contenu):
         print("\n -------dans send notification data")
         # test notif push
         token = PushToken.objects.all().only('expo_push_token')
         for i in token:
-            print("voic le token : ", i.expo_push_token)
-            send_push_notification(token=i.expo_push_token, title="test", body="sitraka andy", data= {"age":12, "nom": "sitreeekeee"})
+            print("voici le token : ", i.expo_push_token)
+            send_push_notification(token=i.expo_push_token, title=titre, body=contenu, data= {})
             print("Notification sent to token: ", i.expo_push_token)
     
     # _______________RECEIVE FROM PORTFOLIO________________
@@ -173,10 +174,7 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
         # ********************* DATA TYPE : VISITOR-INFOS ************************
         # verification de type de message | si le visiteur est récurrent ou pas
         if data.get("type") == "visitor-infos" :
-            print("\n-- dans RECEIVE FROM PORTFOLIO visitor-infos")
-            # test eeeeeeeeeee
-            await self.send_notification_data()
-            
+            print("\n-- dans RECEIVE FROM PORTFOLIO visitor-infos")            
             if data.get("uuidExists") and data["uuidExists"] != "undefined" and is_valid_uuid(data["uuidExists"]) == True:
                 visitor_uuid = data["uuidExists"]
                 id_exists = await self.check_visitor_exists(visitor_uuid)
@@ -184,6 +182,8 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                     await self.save_visitor(id_visitor = visitor_uuid ,navigator_info = data["navigator_info"], os = data["os"], device_type = data["device_type"])
                 self.visitor_uuid = visitor_uuid # différent instance pour chaque visiteur
                 self.alert_returning_visitor = f"Le visiteur {visitor_uuid} est revenu consulter votre portfolio."
+                # send notif
+                await self.send_notification_data(titre="Il/elle revient!", contenu="Un visiteur est revenu consulter votre portfolio.")
                 VisitorTrackerConsumer.list_returning_visitors.append(visitor_uuid)
                 print(self.alert_returning_visitor)
                 # time of visit
@@ -212,6 +212,8 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
                     print('--inside while loop (check_visitor_exists)--')
                 self.visitor_uuid = visitor_uuid
                 self.alert_new_visitor = f"Un nouveau visiteur {visitor_uuid} consulte votre portfolio."
+                # send notif
+                await self.send_notification_data(titre="Nouveau visiteur!", contenu="Un nouveau visiteur consulte votre portfolio.")
                 VisitorTrackerConsumer.list_new_visitors.append(str(visitor_uuid))
                 print(self.alert_new_visitor)
                 # save visitor
