@@ -291,9 +291,9 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
             # mis à jour de la liste des cv_download
             VisitorTrackerConsumer.list_cv_download.append(id_cv_download)
             # mis en cache du message : cv_download
-            mes = cache.get(f"cv_download_{data["uuid"]}", [])
+            mes = cache.get(f"cv_download_{data['uuid']}", [])
             mes.append(message_data)
-            cache.set(f"cv_download_{data["uuid"]}", mes, timeout=3600) # 1h
+            cache.set(f"cv_download_{data['uuid']}", mes, timeout=3600) # 1h
 
         # ***************** DATA TYPE : PORTFOLIO-DETAILS-VIEW ******************
         elif data.get("type") == "portfolio_details_view" :
@@ -325,9 +325,9 @@ class VisitorTrackerConsumer(AsyncWebsocketConsumer):
             # mis à jour de la liste des portfolio_detail_view
             VisitorTrackerConsumer.list_portfolio_detail_view.append(id_portfolio_detail_view)
             # mis en cache du message : portfolio_detail_view
-            mes = cache.get(f"portfolio_detail_view_{data["uuid"]}", [])
+            mes = cache.get(f"portfolio_detail_view_{data['uuid']}", [])
             mes.append(message_data)
-            cache.set(f"portfolio_detail_view_{data["uuid"]}", mes, timeout=3600) # 1h
+            cache.set(f"portfolio_detail_view_{data['uuid']}", mes, timeout=3600) # 1h
 
 
 

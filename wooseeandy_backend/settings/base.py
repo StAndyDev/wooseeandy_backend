@@ -22,10 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = "django-insecure-dak#eqrn#h234c)trw!p2m9o@b!$ldpfovp*k=#)xk=stefn4n"
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 APPEND_SLASH = True
-ALLOWED_HOSTS = ['*']
 
 # Application definition
 
@@ -70,14 +67,6 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'http://localhost:8081',
-    "http://localhost:19000",  # Port de Metro Bundler (Expo)
-    "http://192.168.137.1:8000",
-]
-
-# ALLOWED_HOSTS = ['127.0.0.1', 'localhost'] # pour daphe
 
 ROOT_URLCONF = "wooseeandy_backend.urls"
 
@@ -97,26 +86,6 @@ TEMPLATES = [
     },
 ]
 
-
-# Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'visitor_tracker',
-        'USER': 'postgres',
-        'PASSWORD': 'andyandy',
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
-}
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.sqlite3",
-#         "NAME": BASE_DIR / "db.sqlite3",
-#     }
-# }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
